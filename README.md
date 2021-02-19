@@ -23,6 +23,56 @@ hlsVod.load()
 
 What this library does can be illustrated by this simplified example below.
 
+Consider the following:
+
+```
+#EXTM3U
+#EXT-X-TARGETDURATION:3
+#EXT-X-ALLOW-CACHE:YES
+#EXT-X-PLAYLIST-TYPE:VOD
+#EXT-X-VERSION:3
+#EXT-X-INDEPENDENT-SEGMENTS
+#EXT-X-MEDIA-SEQUENCE:1
+#EXTINF:3.000,
+segment1_0_av.ts
+#EXTINF:3.000,
+segment2_0_av.ts
+#EXTINF:3.000,
+segment3_0_av.ts
+#EXTINF:3.000,
+segment4_0_av.ts
+#EXTINF:3.000,
+segment5_0_av.ts
+#EXTINF:3.000,
+segment6_0_av.ts
+#EXTINF:3.000,
+segment7_0_av.ts
+#EXTINF:3.000,
+segment8_0_av.ts
+#EXTINF:3.000,
+segment9_0_av.ts
+#EXTINF:3.000,
+segment10_0_av.ts
+#EXT-X-ENDLIST
+```
+
+and with this library we can generate a new VOD by truncating to the nearest possible length (depending on segment length). Eg. for a target length of 5, this will result in:
+
+```
+#EXTM3U
+#EXT-X-TARGETDURATION:3
+#EXT-X-ALLOW-CACHE:YES
+#EXT-X-PLAYLIST-TYPE:VOD
+#EXT-X-VERSION:3
+#EXT-X-INDEPENDENT-SEGMENTS
+#EXT-X-MEDIA-SEQUENCE:1
+#EXTINF:3.000,
+segment1_0_av.ts
+#EXTINF:3.000,
+segment2_0_av.ts
+#EXT-X-ENDLIST
+```
+
 # Authors
 
 This open source project is maintained by Eyevinn Technology.
