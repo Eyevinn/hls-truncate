@@ -50,7 +50,7 @@ describe("HLSTruncateVod", () => {
       });
     });
 
-    it("cuts to the closet segment when requesting unaligned duration", done => {
+    it("cuts to the closest segment when requesting unaligned duration", done => {
       const mockVod1 = new HLSTruncateVod('http://mock.com/mock.m3u8', 4, {});
       const mockVod2 = new HLSTruncateVod('http://mock.com/mock.m3u8', 5, {});
   
@@ -63,13 +63,24 @@ describe("HLSTruncateVod", () => {
         return mockVod2.load(mockMasterManifest, mockMediaManifest);
       })
       .then(() => {
-        /* TODO align to nearest
         const bandwidths = mockVod2.getBandwidths();
         const manifest = mockVod2.getMediaManifest(bandwidths[0]);
         const duration = calcDuration(manifest);
         expect(duration).toEqual(6);
-        */
         done();
       })
-    });  
+    });
+    
+    it("cuts to the closest segment when requesting unaligned duration with equal time between them", done => {
+        const mockVod1 = new HLSTruncateVod('http://mock.com/mock.m3u8', 7.5, {});
+    
+        mockVod1.load(mockMasterManifest, mockMediaManifest)
+        .then(() => {
+          const bandwidths = mockVod1.getBandwidths();
+          const manifest = mockVod1.getMediaManifest(bandwidths[0]);
+          const duration = calcDuration(manifest);
+          expect(duration).toEqual(6);
+          done();
+        })
+      });
   });

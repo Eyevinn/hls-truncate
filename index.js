@@ -66,13 +66,23 @@ class HLSTruncateVod {
           this.playlists[bandwidth] = m3u;
         }
         let accDuration = 0;
+        let prevAccDuration = 0;
         let pos = 0;
+        
         m3u.items.PlaylistItem.map((item => {
-          accDuration += item.get('duration');
           if (accDuration <= this.duration) {
+            prevAccDuration = accDuration;
+            accDuration += item.get('duration');
             pos++;
-          }
+          } 
         }));
+
+        // Logic to find the nearest segment in time:
+        // At this stage accDuration is greater than the target duration.
+        // If not closer to the target than prevAccDuration, step back a segment.
+        if((accDuration - this.duration) >= ( this.duration - prevAccDuration)) {
+          pos--;
+        }
         this.playlists[bandwidth].items.PlaylistItem = m3u.items.PlaylistItem.slice(0, pos);
         resolve();
       });
