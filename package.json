@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "jasmine",
-    "postversion": "git push && git push --tags",
+    "postversion": "git push && git push --tags"
   },
   "repository": {
     "type": "git",
