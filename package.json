@@ -1,10 +1,11 @@
 {
   "name": "@eyevinn/hls-truncate",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "NPM library to truncate an HLS VOD manifest into a new VOD manifest",
   "main": "index.js",
   "scripts": {
-    "test": "jasmine"
+    "test": "jasmine",
+    "postversion": "git push && git push --tags",
   },
   "repository": {
     "type": "git",
@@ -16,6 +17,10 @@
     "slate"
   ],
   "author": "Eyevinn Technology <work@eyevinn.se>",
+  "contributors": [
+    "Jonas Rydholm Birmé <jonas.birme@eyevinn.se> (Eyevinn Technology AB)"
+    "Alan Allard <alan.allard@eyevinn.se> (Eyevinn Technology AB)"
+  ],
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/Eyevinn/hls-truncate/issues"
