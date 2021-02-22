@@ -2,6 +2,11 @@ const HLSTruncateVod = require('../index.js');
 const fs = require('fs');
 const Readable = require('stream').Readable;
 
+const calcDuration = (manifest) => {
+  const chunks = manifest.match(/#EXTINF:([0-9\.]+),*/g).map(m => parseFloat(m.split(':')[1]));
+  return chunks.reduce((acc, curr) => acc + curr);
+};
+
 describe("HLSTruncateVod", () => {
     let mockMasterManifest;
     let mockMediaManifest;
@@ -20,32 +25,51 @@ describe("HLSTruncateVod", () => {
     });
   
     it("can create a 6 second long HLS by truncating a 30 sec HLS", done => {
-      const mockVod = new HLSTruncateVod('http://mock.com/mock.m3u8', 30, {});
+      const mockVod = new HLSTruncateVod('http://mock.com/mock.m3u8', 6, {});
   
-      // An example on how it can be initiated from a string instead of URL
-      const masterManifest = fs.readFileSync('testvectors/hls1/master.m3u8', 'utf8');
-      let masterManifestStream = new Readable();
-      masterManifestStream.push(masterManifest);
-      masterManifestStream.push(null);
-  
-      mockVod.load(() => { return masterManifestStream }, mockMediaManifest)
+      mockVod.load(mockMasterManifest, mockMediaManifest)
       .then(() => {
         const bandwidths = mockVod.getBandwidths();
-        console.log(bandwidths);
+        const manifest = mockVod.getMediaManifest(bandwidths[0]);
+        const duration = calcDuration(manifest);
+        expect(duration).toEqual(6);
         done();
       });
     });
+
+    it("creates a 30 second long HLS from a 30 second HLS when requesting 40 second duration", done => {
+      const mockVod = new HLSTruncateVod('http://mock.com/mock.m3u8', 40, {});
   
-    fit("can generate a truncated HLS from a downloaded HLS", done => {
-      const hlsVod = new HLSTruncateVod('https://trailer-admin-cdn.b17g-stage.net/virtualchannels/filler/summer/index.m3u8', 5);
-      hlsVod.load()
+      mockVod.load(mockMasterManifest, mockMediaManifest)
       .then(() => {
-        const bandwidths = hlsVod.getBandwidths();
-        bandwidths.map(bw => {
-          const manifest = hlsVod.getMediaManifest(bw);
-          expect(manifest).not.toBe('');
-        });
+        const bandwidths = mockVod.getBandwidths();
+        const manifest = mockVod.getMediaManifest(bandwidths[0]);
+        const duration = calcDuration(manifest);
+        expect(duration).toEqual(30);
         done();
       });
     });
+
+    it("cuts to the closet segment when requesting unaligned duration", done => {
+      const mockVod1 = new HLSTruncateVod('http://mock.com/mock.m3u8', 4, {});
+      const mockVod2 = new HLSTruncateVod('http://mock.com/mock.m3u8', 5, {});
+  
+      mockVod1.load(mockMasterManifest, mockMediaManifest)
+      .then(() => {
+        const bandwidths = mockVod1.getBandwidths();
+        const manifest = mockVod1.getMediaManifest(bandwidths[0]);
+        const duration = calcDuration(manifest);
+        expect(duration).toEqual(3);
+        return mockVod2.load(mockMasterManifest, mockMediaManifest);
+      })
+      .then(() => {
+        /* TODO align to nearest
+        const bandwidths = mockVod2.getBandwidths();
+        const manifest = mockVod2.getMediaManifest(bandwidths[0]);
+        const duration = calcDuration(manifest);
+        expect(duration).toEqual(6);
+        */
+        done();
+      })
+    });  
   });

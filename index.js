@@ -65,25 +65,15 @@ class HLSTruncateVod {
         if (!this.playlists[bandwidth]) {
           this.playlists[bandwidth] = m3u;
         }
-
-        let playlistItems = this.playlists[bandwidth].items.PlaylistItem;
-        let length = 0;
-        // Truncate playlist items here
-        // - copy items
-        // - accumulate length of each playlist item
-        // - compare to duration
-        // - stop as soon as duration is less then cumulative value
-        let i = 0;
-        while(i < playlistItems.length && length < this.duration) {
-          const itemDuration = playlistItems[i].properties.duration;
-          length += itemDuration
-          
-          if(length < this.duration) {
-            this.playlists[bandwidth].items.PlaylistItem = this.playlists[bandwidth].items.PlaylistItem.concat(playlistItems);
+        let accDuration = 0;
+        let pos = 0;
+        m3u.items.PlaylistItem.map((item => {
+          accDuration += item.get('duration');
+          if (accDuration <= this.duration) {
+            pos++;
           }
-          i++;
-        }
-
+        }));
+        this.playlists[bandwidth].items.PlaylistItem = m3u.items.PlaylistItem.slice(0, pos);
         resolve();
       });
       parser.on('error', (err) => {
