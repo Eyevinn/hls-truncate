@@ -1,5 +1,7 @@
 # hls-truncate
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Coverage Status](https://coveralls.io/repos/github/Eyevinn/hls-repeat/badge.svg?branch=master)](https://coveralls.io/github/Eyevinn/hls-repeat?branch=master) [![Slack](http://slack.streamingtech.se/badge.svg)](http://slack.streamingtech.se)
+
 Node library to create an HLS by truncating the length of an HLS VOD.
 
 ## Installation
