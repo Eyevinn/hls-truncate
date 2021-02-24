@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "test": "jasmine",
-    "postversion": "git push && git push --tags"
+    "postversion": "git push && git push --tags",
+    "coverage": "nyc npm test && nyc report",
+    "coveralls": "nyc npm test && nyc report --reporter=text-lcov | coveralls"
   },
   "repository": {
     "type": "git",
@@ -27,7 +29,9 @@
   },
   "homepage": "https://github.com/Eyevinn/hls-truncate#readme",
   "devDependencies": {
-    "jasmine": "^3.6.4"
+    "coveralls": "^3.1.0",
+    "jasmine": "^3.6.4",
+    "nyc": "^15.1.0"
   },
   "dependencies": {
     "@eyevinn/m3u8": "^0.3.1",
