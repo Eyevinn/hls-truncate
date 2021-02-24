@@ -1,6 +1,6 @@
 # hls-truncate
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Coverage Status](https://coveralls.io/repos/github/Eyevinn/hls-truncate/badge.svg?branch=master)](https://coveralls.io/github/Eyevinn/hls-truncate?branch=master) [![Slack](http://slack.streamingtech.se/badge.svg)](http://slack.streamingtech.se)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Coverage Status](https://coveralls.io/repos/github/Eyevinn/hls-truncate/badge.svg?branch=main)](https://coveralls.io/github/Eyevinn/hls-truncate?branch=main) [![Slack](http://slack.streamingtech.se/badge.svg)](http://slack.streamingtech.se)
 
 Node library to create an HLS by truncating the length of an HLS VOD.
 
