@@ -1,0 +1,128 @@
+#EXTM3U
+#EXT-X-VERSION:6
+## Created with Unified Streaming Platform (version=1.11.20-26889)
+#EXT-X-PLAYLIST-TYPE:VOD
+#EXT-X-MEDIA-SEQUENCE:1
+#EXT-X-INDEPENDENT-SEGMENTS
+#EXT-X-TARGETDURATION:3
+#USP-X-TIMESTAMP-MAP:MPEGTS=900000,LOCAL=1970-01-01T00:00:00Z
+#EXTINF:3, no desc
+test-video=3500000-1.ts
+#EXTINF:3, no desc
+test-video=3500000-2.ts
+#EXTINF:3, no desc
+test-video=3500000-3.ts
+#EXTINF:3, no desc
+test-video=3500000-4.ts
+#EXTINF:3, no desc
+test-video=3500000-5.ts
+#EXTINF:3, no desc
+test-video=3500000-6.ts
+#EXTINF:3, no desc
+test-video=3500000-7.ts
+#EXTINF:3, no desc
+test-video=3500000-8.ts
+#EXTINF:3, no desc
+test-video=3500000-9.ts
+#EXTINF:3, no desc
+test-video=3500000-10.ts
+#EXTINF:3, no desc
+test-video=3500000-11.ts
+#EXTINF:3, no desc
+test-video=3500000-12.ts
+#EXTINF:3, no desc
+test-video=3500000-13.ts
+#EXTINF:3, no desc
+test-video=3500000-14.ts
+#EXTINF:3, no desc
+test-video=3500000-15.ts
+#EXTINF:3, no desc
+test-video=3500000-16.ts
+#EXTINF:3, no desc
+test-video=3500000-17.ts
+#EXTINF:3, no desc
+test-video=3500000-18.ts
+#EXTINF:3, no desc
+test-video=3500000-19.ts
+#EXTINF:3, no desc
+test-video=3500000-20.ts
+#EXTINF:3, no desc
+test-video=3500000-21.ts
+#EXTINF:3, no desc
+test-video=3500000-22.ts
+#EXTINF:3, no desc
+test-video=3500000-23.ts
+#EXTINF:3, no desc
+test-video=3500000-24.ts
+#EXTINF:3, no desc
+test-video=3500000-25.ts
+#EXTINF:3, no desc
+test-video=3500000-26.ts
+#EXTINF:3, no desc
+test-video=3500000-27.ts
+#EXTINF:3, no desc
+test-video=3500000-28.ts
+#EXTINF:3, no desc
+test-video=3500000-29.ts
+#EXTINF:3, no desc
+test-video=3500000-30.ts
+#EXTINF:3, no desc
+test-video=3500000-31.ts
+#EXTINF:3, no desc
+test-video=3500000-32.ts
+#EXTINF:3, no desc
+test-video=3500000-33.ts
+#EXTINF:3, no desc
+test-video=3500000-34.ts
+#EXTINF:3, no desc
+test-video=3500000-35.ts
+#EXTINF:3, no desc
+test-video=3500000-36.ts
+#EXTINF:3, no desc
+test-video=3500000-37.ts
+#EXTINF:3, no desc
+test-video=3500000-38.ts
+#EXTINF:3, no desc
+test-video=3500000-39.ts
+#EXTINF:3, no desc
+test-video=3500000-40.ts
+#EXTINF:3, no desc
+test-video=3500000-41.ts
+#EXTINF:3, no desc
+test-video=3500000-42.ts
+#EXTINF:3, no desc
+test-video=3500000-43.ts
+#EXTINF:3, no desc
+test-video=3500000-44.ts
+#EXTINF:3, no desc
+test-video=3500000-45.ts
+#EXTINF:3, no desc
+test-video=3500000-46.ts
+#EXTINF:3, no desc
+test-video=3500000-47.ts
+#EXTINF:3, no desc
+test-video=3500000-48.ts
+#EXTINF:3, no desc
+test-video=3500000-49.ts
+#EXTINF:3, no desc
+test-video=3500000-50.ts
+#EXTINF:3, no desc
+test-video=3500000-51.ts
+#EXTINF:3, no desc
+test-video=3500000-52.ts
+#EXTINF:3, no desc
+test-video=3500000-53.ts
+#EXTINF:3, no desc
+test-video=3500000-54.ts
+#EXTINF:3, no desc
+test-video=3500000-55.ts
+#EXTINF:3, no desc
+test-video=3500000-56.ts
+#EXTINF:3, no desc
+test-video=3500000-57.ts
+#EXTINF:3, no desc
+test-video=3500000-58.ts
+#EXTINF:2.16, no desc
+test-video=3500000-59.ts
+#EXT-X-ENDLIST
+

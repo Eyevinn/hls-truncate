@@ -7,15 +7,16 @@ class HLSTruncateVod {
     this.masterManifestUri = vodManifestUri;
     this.playlists = {};
     this.duration = duration;
+    this.durationAudio = 0;
     this.bandwiths = [];
     this.audioSegments = {};
   }
 
-  load(_injectMasterManifest, _injectMediaManifest, _injectAudioManifest) {
+  async load(_injectMasterManifest, _injectMediaManifest, _injectAudioManifest) {
     return new Promise((resolve, reject) => {
       const parser = m3u8.createStream();
 
-      parser.on('m3u', m3u => {
+      parser.on('m3u', async m3u => {
         this.m3u = m3u;
         let mediaManifestPromises = [];
         let audioManifestPromises = [];
@@ -25,14 +26,15 @@ class HLSTruncateVod {
         if (m) {
           baseUrl = m[1] + '/';
         }
-        
+
         for (let i = 0; i < m3u.items.StreamItem.length; i++) {
           const streamItem = m3u.items.StreamItem[i];
           this.bandwiths.push(streamItem.get('bandwidth'));
           const mediaManifestUrl = url.resolve(baseUrl, streamItem.get('uri'));
           if (!m3u.items.MediaItem.find((mediaItem) => mediaItem.get("type") === "AUDIO" && mediaItem.get("uri") == streamItem.get("uri"))) {
-            mediaManifestPromises.push(this._loadMediaManifest(mediaManifestUrl, streamItem.get('bandwidth'), _injectMediaManifest));
+            await this._loadMediaManifest(mediaManifestUrl, streamItem.get('bandwidth'), _injectMediaManifest);
           }
+
 
           if (streamItem.attributes.attributes["audio"]) {
             let audioGroupId = streamItem.attributes.attributes["audio"];
@@ -89,9 +91,9 @@ class HLSTruncateVod {
           }
         }
 
-        Promise.all(mediaManifestPromises.concat(audioManifestPromises))
+        Promise.all(audioManifestPromises)
           .then(resolve)
-          .catch(reject);
+          .catch(reject)
       });
       parser.on('error', (err) => {
         reject("Failed to parse M3U8: " + err);
@@ -155,9 +157,13 @@ class HLSTruncateVod {
         // Logic to find the nearest segment in time:
         // At this stage accDuration is greater than the target duration.
         // If not closer to the target than prevAccDuration, step back a segment.
-        if ((accDuration - this.duration) >= (this.duration - prevAccDuration)) {
+        if ((accDuration - this.duration) >= (this.duration - prevAccDuration) && pos > 1) {
           pos--;
+          accDuration = prevAccDuration;
         }
+
+        this.durationAudio = this.durationAudio === 0 ? accDuration : this.durationAudio;
+
         this.playlists[bandwidth].items.PlaylistItem = m3u.items.PlaylistItem.slice(0, pos);
         resolve();
       });
@@ -179,6 +185,7 @@ class HLSTruncateVod {
     return new Promise((resolve, reject) => {
       const parser = m3u8.createStream();
 
+
       parser.on('m3u', m3u => {
         if (!this.audioSegments[audioGroupId][audioLang].length) {
           this.audioSegments[audioGroupId][audioLang] = m3u;
@@ -188,7 +195,7 @@ class HLSTruncateVod {
         let pos = 0;
 
         m3u.items.PlaylistItem.map((item => {
-          if (accDuration <= this.duration) {
+          if (accDuration <= this.durationAudio) {
             prevAccDuration = accDuration;
             accDuration += item.get('duration');
             pos++;
@@ -198,7 +205,7 @@ class HLSTruncateVod {
         // Logic to find the nearest segment in time:
         // At this stage accDuration is greater than the target duration.
         // If not closer to the target than prevAccDuration, step back a segment.
-        if ((accDuration - this.duration) >= (this.duration - prevAccDuration)) {
+        if (this._similarSegItemDuration() && (accDuration - this.durationAudio) >= (this.durationAudio - prevAccDuration) && pos > 1) {
           pos--;
         }
         this.audioSegments[audioGroupId][audioLang].items.PlaylistItem = m3u.items.PlaylistItem.slice(0, pos);
@@ -218,6 +225,49 @@ class HLSTruncateVod {
       }
     });
   }
+
+  _similarSegItemDuration() {
+    const groups = Object.keys(this.audioSegments);
+    if (groups.length === 0) {
+      return true;
+    }
+    const langs = Object.keys(this.audioSegments[groups[0]]);
+    if (langs.length === 0) {
+      return true;
+    }
+    const audioSegList = this.audioSegments[groups[0]][langs[0]].items.PlaylistItem;
+    let totalAudioDuration = 0;
+    let audioCount = 0;
+    audioSegList.map(seg => {
+      if (seg.get("duration")) {
+        audioCount++;
+        totalAudioDuration += seg.get("duration");
+      }
+    })
+    const avgAudioDuration = totalAudioDuration / audioCount;
+
+    const bandwidths = Object.keys(this.playlists);
+    if (bandwidths.length === 0) {
+      return true;
+    }
+    const videoSegList = this.playlists[bandwidths[0]].items.PlaylistItem;
+    let totalVideoDuration = 0;
+    let videoCount = 0;
+    videoSegList.map(seg => {
+      if (seg.get("duration")) {
+        videoCount++;
+        totalVideoDuration += seg.get("duration");
+      }
+    })
+    const avgVideoDuration = totalVideoDuration / videoCount;
+
+    const diff = Math.abs(avgVideoDuration - avgAudioDuration);
+    if (diff > 0.250) {
+      return false;
+    }
+    return true;
+  }
+
 }
 
 module.exports = HLSTruncateVod;
