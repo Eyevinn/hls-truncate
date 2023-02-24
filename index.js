@@ -117,6 +117,18 @@ class HLSTruncateVod {
   }
 
   getAudioManifest(audioGroupId, lang) {
+    if (!this.audioSegments[audioGroupId]) {
+      const keygroup = Object.keys(this.audioSegments)
+      const audioSegementsGroup = this.audioSegments[keygroup[0]]
+      if (!audioSegementsGroup[lang]) {
+        const keylang = Object.keys(audioSegementsGroup)
+        return audioSegementsGroup[keylang[0]].toString();
+      }
+      return audioSegementsGroup[lang].toString();
+    } else if (!this.audioSegments[audioGroupId][lang]) {
+      const keylang = Object.keys(this.audioSegments[audioGroupId])
+      return this.audioSegments[audioGroupId][keylang[0]].toString();
+    }
     return this.audioSegments[audioGroupId][lang].toString();
   }
 
@@ -168,8 +180,8 @@ class HLSTruncateVod {
       const parser = m3u8.createStream();
 
       parser.on('m3u', m3u => {
-        if (!this.playlists[audioGroupId][audioLang].length) {
-          this.playlists[audioGroupId][audioLang] = m3u;
+        if (!this.audioSegments[audioGroupId][audioLang].length) {
+          this.audioSegments[audioGroupId][audioLang] = m3u;
         }
         let accDuration = 0;
         let prevAccDuration = 0;
@@ -189,7 +201,7 @@ class HLSTruncateVod {
         if ((accDuration - this.duration) >= (this.duration - prevAccDuration)) {
           pos--;
         }
-        this.playlists[audioGroupId][audioLang].items.PlaylistItem = m3u.items.PlaylistItem.slice(0, pos);
+        this.audioSegments[audioGroupId][audioLang].items.PlaylistItem = m3u.items.PlaylistItem.slice(0, pos);
         resolve();
       });
       parser.on('error', (err) => {
