@@ -166,6 +166,9 @@ describe("HLSTruncateVod", () => {
     let mockMasterManifest;
     let mockMediaManifest;
     let mockAudioManifest;
+    let mockMasterManifest2;
+    let mockMediaManifest2;
+    let mockAudioManifest2;
 
     beforeEach(() => {
       mockMasterManifest = () => {
