@@ -1,6 +1,6 @@
 {
   "name": "@eyevinn/hls-truncate",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "NPM library to truncate an HLS VOD manifest into a new VOD manifest",
   "main": "index.js",
   "scripts": {
