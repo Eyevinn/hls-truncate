@@ -194,6 +194,27 @@ describe("HLSTruncateVod,", () => {
           done();
         })
     });
+
+    it("can trim the beginning if start offset is requested", done => {
+      const mockVod = new HLSTruncateVod('http://mock.com/mock.m3u8', 30, { offset: 30 });
+  
+      mockVod.load(mockMasterManifest, mockMediaManifest, mockAudioManifest)
+        .then(() => {
+          const bandwidths = mockVod.getBandwidths();
+          const manifest = mockVod.getMediaManifest(bandwidths[0]);
+          const lines = manifest.split("\n");
+          expect(lines[8]).toEqual("level1/seg_37.ts");
+          expect(lines[11]).toEqual("level1/seg_38.ts");
+          const duration = calcDuration(manifest);
+          expect(duration).toEqual(30.03);
+
+          const audioManifest = mockVod.getAudioManifest("aac", "en");
+          const audioLines = audioManifest.split("\n");
+          expect(audioLines[8]).toEqual("audio/seg_en_37.ts");
+          expect(audioLines[11]).toEqual("audio/seg_en_38.ts");
+          done();
+        })
+    });
   });
   describe("for Demuxed TS HLS Vods which have different segments durations,", () => {
     let mockMasterManifest;

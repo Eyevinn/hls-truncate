@@ -209,8 +209,19 @@ class HLSTruncateVod {
         let accDuration = 0;
         let prevAccDuration = 0;
         let pos = 0;
+        let startPos = 0;
 
-        m3u.items.PlaylistItem.map((item => {
+        if (this.startOffset) {
+          let accStartOffset = 0;
+          m3u.items.PlaylistItem.map((item => {
+            if (accStartOffset <= this.startOffset) {
+              accStartOffset += item.get('duration');
+              startPos++;
+            }
+          }));
+        }
+
+        m3u.items.PlaylistItem.slice(startPos).map((item => {
           if (accDuration <= this.durationAudio) {
             prevAccDuration = accDuration;
             accDuration += item.get('duration');
@@ -224,7 +235,7 @@ class HLSTruncateVod {
         if (this._similarSegItemDuration() && (accDuration - this.durationAudio) >= (this.durationAudio - prevAccDuration) && pos > 1) {
           pos--;
         }
-        this.audioSegments[audioGroupId][audioLang].items.PlaylistItem = m3u.items.PlaylistItem.slice(0, pos);
+        this.audioSegments[audioGroupId][audioLang].items.PlaylistItem = m3u.items.PlaylistItem.slice(startPos, startPos + pos);
         resolve();
       });
       parser.on('error', (err) => {
