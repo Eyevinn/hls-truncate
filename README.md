@@ -75,13 +75,76 @@ segment2_0_av.ts
 #EXT-X-ENDLIST
 ```
 
+You can also provide a start-time offset.
+
+```
+const hlsVod = new HLSTruncateVod('http://testcontent.eyevinn.technology/slates/30seconds/playlist.m3u8', 4, { offset: 10 });
+hlsVod.load()
+.then(() => {
+  const mediaManifest = hlsVod.getMediaManifest(4928000);
+  console.log(mediaManifest);
+});
+```
+
+The library will first remove 10 seconds (approx depending on segment length) and then take the next 4 seconds of the original playlist. For example consider this playlist:
+
+```
+#EXTM3U
+#EXT-X-TARGETDURATION:3
+#EXT-X-ALLOW-CACHE:YES
+#EXT-X-PLAYLIST-TYPE:VOD
+#EXT-X-VERSION:3
+#EXT-X-INDEPENDENT-SEGMENTS
+#EXT-X-MEDIA-SEQUENCE:1
+#EXTINF:3.000,
+segment1_0_av.ts
+#EXTINF:3.000,
+segment2_0_av.ts
+#EXTINF:3.000,
+segment3_0_av.ts
+#EXTINF:3.000,
+segment4_0_av.ts
+#EXTINF:3.000,
+segment5_0_av.ts
+#EXTINF:3.000,
+segment6_0_av.ts
+#EXTINF:3.000,
+segment7_0_av.ts
+#EXTINF:3.000,
+segment8_0_av.ts
+#EXTINF:3.000,
+segment9_0_av.ts
+#EXTINF:3.000,
+segment10_0_av.ts
+#EXT-X-ENDLIST
+```
+
+will result in:
+
+```
+#EXTM3U
+#EXT-X-TARGETDURATION:3
+#EXT-X-ALLOW-CACHE:YES
+#EXT-X-PLAYLIST-TYPE:VOD
+#EXT-X-VERSION:3
+#EXT-X-INDEPENDENT-SEGMENTS
+#EXT-X-MEDIA-SEQUENCE:1
+#EXTINF:3.000,
+segment5_0_av.ts
+#EXTINF:3.000,
+segment6_0_av.ts
+#EXT-X-ENDLIST
+```
+
+It will remove 12 seconds from the start (3 segments is 9 seconds and 4 segments is 12 seconds) and then truncate the remaining part to get a duration of 6 seconds (2 segments i 6 segments which is close to 4 seconds as requested).
+
 # Authors
 
 This open source project is maintained by Eyevinn Technology.
 
 ## Contributors
 
-- Jonas Rydholm Birmé (jonas.birme@eyevinn.se)
+- Jonas Birmé (jonas.birme@eyevinn.se)
 - Alan Allard (alan.allard@eyevinn.se)
 
 # [Contributing](CONTRIBUTING.md)

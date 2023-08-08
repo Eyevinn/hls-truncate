@@ -8,8 +8,12 @@ class HLSTruncateVod {
     this.playlists = {};
     this.duration = duration;
     this.durationAudio = 0;
+    this.startVideoOffset = 0;
     this.bandwiths = [];
     this.audioSegments = {};
+    if (options && options.offset) {
+      this.startOffset = options.offset;
+    }
   }
 
   load(_injectMasterManifest, _injectMediaManifest, _injectAudioManifest) {
@@ -147,8 +151,21 @@ class HLSTruncateVod {
         let accDuration = 0;
         let prevAccDuration = 0;
         let pos = 0;
+        let startPos = 0;
 
-        m3u.items.PlaylistItem.map((item => {
+        if (this.startOffset) {
+          let accStartOffset = 0;
+          m3u.items.PlaylistItem.map((item => {
+            if (accStartOffset + item.get('duration') <= this.startOffset) {
+              accStartOffset += item.get('duration');
+              startPos++;
+            }
+          }));
+
+          this.startVideoOffset = this.startVideoOffset === 0 ? accStartOffset : this.startVideoOffset;
+        }
+
+        m3u.items.PlaylistItem.slice(startPos).map((item => {
           if (accDuration <= this.duration) {
             prevAccDuration = accDuration;
             accDuration += item.get('duration');
@@ -166,7 +183,7 @@ class HLSTruncateVod {
 
         this.durationAudio = this.durationAudio === 0 ? accDuration : this.durationAudio;
 
-        this.playlists[bandwidth].items.PlaylistItem = m3u.items.PlaylistItem.slice(0, pos);
+        this.playlists[bandwidth].items.PlaylistItem = m3u.items.PlaylistItem.slice(startPos, startPos + pos);
         resolve();
       });
       parser.on('error', (err) => {
@@ -195,8 +212,22 @@ class HLSTruncateVod {
         let accDuration = 0;
         let prevAccDuration = 0;
         let pos = 0;
+        let startPos = 0;
 
-        m3u.items.PlaylistItem.map((item => {
+        if (this.startOffset) {
+          let accStartOffset = 0;
+          m3u.items.PlaylistItem.map((item => {
+            if (accStartOffset + item.get('duration') <= this.startOffset) {
+              accStartOffset += item.get('duration');
+              startPos++;
+            }
+          }));
+          if ((accStartOffset > this.startVideoOffset) && startPos > 1) {
+            startPos--;
+          }
+        }
+
+        m3u.items.PlaylistItem.slice(startPos).map((item => {
           if (accDuration <= this.durationAudio) {
             prevAccDuration = accDuration;
             accDuration += item.get('duration');
@@ -210,7 +241,8 @@ class HLSTruncateVod {
         if (this._similarSegItemDuration() && (accDuration - this.durationAudio) >= (this.durationAudio - prevAccDuration) && pos > 1) {
           pos--;
         }
-        this.audioSegments[audioGroupId][audioLang].items.PlaylistItem = m3u.items.PlaylistItem.slice(0, pos);
+
+        this.audioSegments[audioGroupId][audioLang].items.PlaylistItem = m3u.items.PlaylistItem.slice(startPos, startPos + pos);
         resolve();
       });
       parser.on('error', (err) => {

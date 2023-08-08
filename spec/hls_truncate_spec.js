@@ -105,6 +105,22 @@ describe("HLSTruncateVod for muxed TS HLS Vods", () => {
         done();
       })
   });
+
+  it("can trim the beginning if start offset is requested", done => {
+    const mockVod = new HLSTruncateVod('http://mock.com/mock.m3u8', 6, { offset: 10 });
+
+    mockVod.load(mockMasterManifest, mockMediaManifest)
+      .then(() => {
+        const bandwidths = mockVod.getBandwidths();
+        const manifest = mockVod.getMediaManifest(bandwidths[0]);
+        const lines = manifest.split("\n");
+        expect(lines[8]).toEqual("segment4_0_av.ts");
+        expect(lines[10]).toEqual("segment5_0_av.ts");
+        const duration = calcDuration(manifest);
+        expect(duration).toEqual(6);
+        done();
+      })
+  });
 });
 describe("HLSTruncateVod,", () => {
   describe("for Demuxed TS HLS Vods", () => {
@@ -175,6 +191,27 @@ describe("HLSTruncateVod,", () => {
           const manifest = mockVod1.getAudioManifest("aac", "en");
           const duration = calcDuration(manifest);
           expect(duration).toEqual(6.006);
+          done();
+        })
+    });
+
+    it("can trim the beginning if start offset is requested", done => {
+      const mockVod = new HLSTruncateVod('http://mock.com/mock.m3u8', 30, { offset: 30 });
+  
+      mockVod.load(mockMasterManifest, mockMediaManifest, mockAudioManifest)
+        .then(() => {
+          const bandwidths = mockVod.getBandwidths();
+          const manifest = mockVod.getMediaManifest(bandwidths[0]);
+          const lines = manifest.split("\n");
+          expect(lines[8]).toEqual("level1/seg_36.ts");
+          expect(lines[11]).toEqual("level1/seg_37.ts");
+          const duration = calcDuration(manifest);
+          expect(duration).toEqual(30.03);
+
+          const audioManifest = mockVod.getAudioManifest("aac", "en");
+          const audioLines = audioManifest.split("\n");
+          expect(audioLines[8]).toEqual("audio/seg_en_36.ts");
+          expect(audioLines[11]).toEqual("audio/seg_en_37.ts");
           done();
         })
     });
