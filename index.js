@@ -8,6 +8,7 @@ class HLSTruncateVod {
     this.playlists = {};
     this.duration = duration;
     this.durationAudio = 0;
+    this.startVideoOffset = 0;
     this.bandwiths = [];
     this.audioSegments = {};
     if (options && options.offset) {
@@ -155,11 +156,13 @@ class HLSTruncateVod {
         if (this.startOffset) {
           let accStartOffset = 0;
           m3u.items.PlaylistItem.map((item => {
-            if (accStartOffset <= this.startOffset) {
+            if (accStartOffset + item.get('duration') <= this.startOffset) {
               accStartOffset += item.get('duration');
               startPos++;
             }
           }));
+
+          this.startVideoOffset = this.startVideoOffset === 0 ? accStartOffset : this.startVideoOffset;
         }
 
         m3u.items.PlaylistItem.slice(startPos).map((item => {
@@ -214,11 +217,14 @@ class HLSTruncateVod {
         if (this.startOffset) {
           let accStartOffset = 0;
           m3u.items.PlaylistItem.map((item => {
-            if (accStartOffset <= this.startOffset) {
+            if (accStartOffset + item.get('duration') <= this.startOffset) {
               accStartOffset += item.get('duration');
               startPos++;
             }
           }));
+          if ((accStartOffset > this.startVideoOffset) && startPos > 1) {
+            startPos--;
+          }
         }
 
         m3u.items.PlaylistItem.slice(startPos).map((item => {
@@ -235,6 +241,7 @@ class HLSTruncateVod {
         if (this._similarSegItemDuration() && (accDuration - this.durationAudio) >= (this.durationAudio - prevAccDuration) && pos > 1) {
           pos--;
         }
+
         this.audioSegments[audioGroupId][audioLang].items.PlaylistItem = m3u.items.PlaylistItem.slice(startPos, startPos + pos);
         resolve();
       });

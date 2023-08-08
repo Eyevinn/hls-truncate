@@ -290,5 +290,25 @@ describe("HLSTruncateVod", () => {
           done();
         })
     });
+
+    it("cuts to the closest segment when requesting unaligned duration with equal time between them and has start offset", done => {
+      const mockVod = new HLSTruncateVod('http://mock.com/mock.m3u8', 7.5, { offset: 5 });
+
+      mockVod.load(mockMasterManifest, mockMediaManifest, mockAudioManifest)
+        .then(() => {
+          const bandwidths = mockVod.getBandwidths();
+          const videoManifest = mockVod.getMediaManifest(bandwidths[0]);
+          const audioManifest = mockVod.getAudioManifest("audio-aacl-256", "sv");
+          const linesVideo = videoManifest.split("\n");
+          const linesAudio = audioManifest.split("\n");
+          const durationVideo = calcDuration(videoManifest);
+          const durationAudio = calcDuration(audioManifest);
+          expect(durationVideo).toEqual(6);
+          expect(durationAudio).toEqual(7.68);
+          expect(linesVideo[9]).toEqual("test-video=2500000-2.m4s");
+          expect(linesAudio[9]).toEqual("test-audio=256000-2.m4s");
+          done();
+        })
+    });
   });
 });
