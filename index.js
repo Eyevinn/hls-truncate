@@ -5,27 +5,29 @@ const url = require('url');
 class HLSTruncateVod {
   constructor(vodManifestUri, duration, options) {
     this.masterManifestUri = vodManifestUri;
-    this.playlists = {};
+    this.playlistsVideo = {};
     this.duration = duration;
     this.durationAudio = 0;
     this.startVideoOffset = 0;
+    this.removedDurationFromStartVideo = 0;
     this.bandwiths = [];
-    this.audioSegments = {};
+    this.playlistsAudio = {};
+    this.playlistsSubtitles = {};
     if (options && options.offset) {
       this.startOffset = options.offset;
     }
   }
 
-  load(_injectMasterManifest, _injectMediaManifest, _injectAudioManifest) {
+  load(_injectMasterManifest, _injectMediaManifest, _injectAudioManifest, _injectSubtitleManifest) {
     return new Promise((resolve, reject) => {
       const parser = m3u8.createStream();
 
       parser.on('m3u', m3u => {
         this.m3u = m3u;
-        let mediaManifestPromises = [];
-        let audioManifestPromises = [];
+        let manifestPromisesVideo = [];
+        let manifestPromisesAudio = [];
+        let manifestPromisesSubtitles = [];
         let baseUrl;
-        let audioGroups = {};
         const m = this.masterManifestUri.match(/^(.*)\/.*?$/);
         if (m) {
           baseUrl = m[1] + '/';
@@ -34,75 +36,41 @@ class HLSTruncateVod {
         for (let i = 0; i < m3u.items.StreamItem.length; i++) {
           const streamItem = m3u.items.StreamItem[i];
           this.bandwiths.push(streamItem.get('bandwidth'));
-          const mediaManifestUrl = url.resolve(baseUrl, streamItem.get('uri'));
+          const manifestUrlVideo = url.resolve(baseUrl, streamItem.get('uri'));
+          // Sometimes the audio manifest can be under a #EXT-X-STREAM-INF tag. 
+          // We need to check if the media item is an audio item. 
+          // If not, we need to load the media manifest.
+          // NOTE: hls-truncate does not support audio streams under a #EXT-X-STREAM-INF tag.
           if (!m3u.items.MediaItem.find((mediaItem) => mediaItem.get("type") === "AUDIO" && mediaItem.get("uri") == streamItem.get("uri"))) {
-            mediaManifestPromises.push(this._loadMediaManifest(mediaManifestUrl, streamItem.get('bandwidth'), _injectMediaManifest));
+            manifestPromisesVideo.push(this._loadMediaManifest(manifestUrlVideo, streamItem.get('bandwidth'), _injectMediaManifest));
+          } 
+        }
+        if (m3u.items.MediaItem.length > 0) {
+          for (let i = 0; i < m3u.items.MediaItem.length; i++) {
+            const mediaItem = m3u.items.MediaItem[i];
+            if (mediaItem.get("type") === "AUDIO") {
+              const groupId = mediaItem.get("group-id");
+              const lang = mediaItem.get("language") || mediaItem.get("name");
+              const variantKey = this._getMediaVariantKey(groupId, lang);
+              const manifestUrlAudio = url.resolve(baseUrl, mediaItem.get("uri"));
+              manifestPromisesAudio.push(this._loadAudioManifest(manifestUrlAudio, variantKey, _injectAudioManifest));
+            } else if (mediaItem.get("type") === "SUBTITLES") {
+              const groupId = mediaItem.get("group-id");
+              const lang = mediaItem.get("language") || mediaItem.get("name");
+              const variantKey = this._getMediaVariantKey(groupId, lang);
+              const manifestUrlSubtitles = url.resolve(baseUrl, mediaItem.get("uri"));
+              manifestPromisesSubtitles.push(this._loadSubtitleManifest(manifestUrlSubtitles, variantKey, _injectSubtitleManifest));
+            }
           }
         }
 
-        Promise.all(mediaManifestPromises).then(() => {
-          for (let i = 0; i < m3u.items.StreamItem.length; i++) {
-            const streamItem = m3u.items.StreamItem[i];
-            if (streamItem.attributes.attributes["audio"]) {
-              let audioGroupId = streamItem.attributes.attributes["audio"];
-              if (!this.audioSegments[audioGroupId]) {
-                this.audioSegments[audioGroupId] = {};
-              }
-
-              let audioGroupItems = m3u.items.MediaItem.filter((item) => {
-                return item.attributes.attributes.type === "AUDIO" && item.attributes.attributes["group-id"] === audioGroupId;
-              });
-              // # Find all langs amongst the mediaItems that have this group id.
-              // # It extracts each mediaItems language attribute value.
-              // # ALSO initialize in this.audioSegments a lang. property whos value is an array [{seg1}, {seg2}, ...].
-              let audioLanguages = audioGroupItems.map((item) => {
-                let itemLang;
-                if (!item.attributes.attributes["language"]) {
-                  itemLang = item.attributes.attributes["name"];
-                } else {
-                  itemLang = item.attributes.attributes["language"];
-                }
-                // Initialize lang. in new group.
-                if (!this.audioSegments[audioGroupId][itemLang]) {
-                  this.audioSegments[audioGroupId][itemLang] = [];
-                }
-                return (item = itemLang);
-              });
-
-              // # For each lang, find the lang playlist uri and do _loadAudioManifest() on it.
-              for (let j = 0; j < audioLanguages.length; j++) {
-                let audioLang = audioLanguages[j];
-                let audioUri = audioGroupItems[j].attributes.attributes.uri
-                if (!audioUri) {
-                  //# if mediaItems dont have uris
-                  let audioVariant = m3u.items.StreamItem.find((item) => {
-                    return !item.attributes.attributes.resolution && item.attributes.attributes["audio"] === audioGroupId;
-                  });
-                  if (audioVariant) {
-                    audioUri = audioVariant.properties.uri;
-                  }
-                }
-                if (audioUri) {
-                  let audioManifestUrl = url.resolve(baseUrl, audioUri);
-                  if (!audioGroups[audioGroupId]) {
-                    audioGroups[audioGroupId] = {};
-                  }
-                  // # Prevents 'loading' an audio track with same GroupID and LANG.
-                  // # otherwise it just would've loaded OVER the latest occurrent of the LANG in GroupID.
-                  if (!audioGroups[audioGroupId][audioLang]) {
-                    audioGroups[audioGroupId][audioLang] = true;
-                    audioManifestPromises.push(this._loadAudioManifest(audioManifestUrl, audioGroupId, audioLang, _injectAudioManifest));
-                  }
-                }
-              }
-            }
-          }
-          return Promise.all(audioManifestPromises);
-        }).then(resolve).catch(reject)
-
+        // Promise all on media manifest promises, audio and subs
+        Promise.all([...manifestPromisesVideo, ...manifestPromisesAudio, ...manifestPromisesSubtitles]).then(() => {
+          resolve();
+        }).catch(reject);
       });
       parser.on('error', (err) => {
-        reject("Failed to parse M3U8: " + err);
+        reject("[hls-truncate]: Failed to parse M3U8: " + err);
       });
       if (!_injectMasterManifest) {
         fetch(this.masterManifestUri)
@@ -120,24 +88,173 @@ class HLSTruncateVod {
     return this.bandwiths;
   }
 
+  getAudioGroupIds() {
+    const variantKeys = Object.keys(this.playlistsAudio);
+    return variantKeys.map(variantKey => this._getGroupAndLanguageFromVariantKey(variantKey).groupId);
+  }
+
+  getAudioLanguagesForGroupId(audioGroupId) {
+    const variantKeys = Object.keys(this.playlistsAudio);
+    return variantKeys
+      .filter(variantKey => {
+        const variant = this._getGroupAndLanguageFromVariantKey(variantKey);
+        return variant.groupId === audioGroupId;
+      })
+      .map(variantKey => {
+        const variant = this._getGroupAndLanguageFromVariantKey(variantKey);
+        return variant.lang;
+      });
+  }
+
+  getAudioVariantKeys() {
+    return Object.keys(this.playlistsAudio);
+  }
+
   getMediaManifest(bw) {
-    return this.playlists[bw].toString();
+    return this.playlistsVideo[bw].toString();
   }
 
   getAudioManifest(audioGroupId, lang) {
-    if (!this.audioSegments[audioGroupId]) {
-      const keygroup = Object.keys(this.audioSegments)
-      const audioSegementsGroup = this.audioSegments[keygroup[0]]
-      if (!audioSegementsGroup[lang]) {
-        const keylang = Object.keys(audioSegementsGroup)
-        return audioSegementsGroup[keylang[0]].toString();
-      }
-      return audioSegementsGroup[lang].toString();
-    } else if (!this.audioSegments[audioGroupId][lang]) {
-      const keylang = Object.keys(this.audioSegments[audioGroupId])
-      return this.audioSegments[audioGroupId][keylang[0]].toString();
+    const variantKeys = Object.keys(this.playlistsAudio);
+    if (variantKeys.length === 0) {
+      return null;
     }
-    return this.audioSegments[audioGroupId][lang].toString();
+    const desiredVariantKey = this._getMediaVariantKey(audioGroupId, lang);
+    // CASE: no perfect match for desired groupId and lang
+    if (!this.playlistsAudio[desiredVariantKey]) {
+      // If the desired variant key is not found, we need to find the closest variant key.
+      // find all variantkeys that match the audioGroupId
+      const matchingVariantKeys = variantKeys.filter(variantKey => {
+        const variant = this._getGroupAndLanguageFromVariantKey(variantKey);
+        return variant.groupId === audioGroupId;
+      });
+      // in not variantkeys matched then just take the first one
+      if (matchingVariantKeys.length === 0) {
+        matchingVariantKeys.push(variantKeys[0]);
+      }
+      // for all matching variant keys, find the one that matches the lang
+      const matchingVariantKeysWithLang = matchingVariantKeys.filter(variantKey => {
+        const variant = this._getGroupAndLanguageFromVariantKey(variantKey);
+        return variant.lang === lang;
+      });
+      // if there are no matching variant keys with lang then just take the first one
+      if (matchingVariantKeysWithLang.length === 0) {
+        matchingVariantKeysWithLang.push(matchingVariantKeys[0]);
+      }
+      // return the first matching variant key with lang
+      return this.playlistsAudio[matchingVariantKeysWithLang[0]].toString();  
+    }
+    // CASE: perfect match for desired groupId and lang
+    return this.playlistsAudio[desiredVariantKey].toString();
+  }
+
+  getSubtitleManifest(subtitleGroupId, lang) {
+    const variantKeys = Object.keys(this.playlistsSubtitles);
+    if (variantKeys.length === 0) {
+      return null;
+    }
+    const desiredVariantKey = this._getMediaVariantKey(subtitleGroupId, lang);
+    // CASE: no perfect match for desired groupId and lang
+    if (!this.playlistsSubtitles[desiredVariantKey]) {
+      // find all variantkeys that match the subtitleGroupId
+      const matchingVariantKeys = variantKeys.filter(variantKey => {
+        const variant = this._getGroupAndLanguageFromVariantKey(variantKey);
+        return variant.groupId === subtitleGroupId;
+      });
+      // if no variantkeys matched then just take the first one
+      if (matchingVariantKeys.length === 0) {
+        matchingVariantKeys.push(variantKeys[0]);
+      }
+      // for all matching variant keys, find the one that matches the lang
+      const matchingVariantKeysWithLang = matchingVariantKeys.filter(variantKey => {
+        const variant = this._getGroupAndLanguageFromVariantKey(variantKey);
+        return variant.lang === lang;
+      });
+      // if there are no matching variant keys with lang then just take the first one
+      if (matchingVariantKeysWithLang.length === 0) {
+        matchingVariantKeysWithLang.push(matchingVariantKeys[0]);
+      }
+      // return the first matching variant key with lang
+      return this.playlistsSubtitles[matchingVariantKeysWithLang[0]].toString();
+    }
+    // CASE: perfect match for desired groupId and lang
+    return this.playlistsSubtitles[desiredVariantKey].toString();
+  }
+
+  getSubtitleLanguagesForGroupId(subtitleGroupId) { 
+    const variantKeys = Object.keys(this.playlistsSubtitles);
+    return variantKeys
+      .filter(variantKey => {
+        const variant = this._getGroupAndLanguageFromVariantKey(variantKey);
+        return variant.groupId === subtitleGroupId;
+      })
+      .map(variantKey => {
+        const variant = this._getGroupAndLanguageFromVariantKey(variantKey);
+        return variant.lang;
+      });
+  }
+
+  getSubtitleGroupIds() {
+    const variantKeys = Object.keys(this.playlistsSubtitles);
+    return variantKeys.map(variantKey => this._getGroupAndLanguageFromVariantKey(variantKey).groupId);
+  }
+
+  _getMediaVariantKey(groupId, lang) {
+    // Here we create a single key for each media item.
+    // We combine them to one key so that iterating over the groups and languages is easier.
+    // NOTE: we might need to add support for media item codec in the future, not just groupId and lang.
+    return `${groupId}%%%${lang}`;
+  }
+
+  _getGroupAndLanguageFromVariantKey(variantKey) {
+    const [groupId, lang] = variantKey.split("%%%");
+    return { groupId, lang };
+  }
+
+  _similarSegItemDuration() {
+    // get list of groupIds
+    const groupIds = this.getAudioGroupIds();
+    if (groupIds.length === 0) {
+      return true;
+    }
+    // get list of langs for first groupId
+    const langs = this.getAudioLanguagesForGroupId(groupIds[0]);
+    if (langs.length === 0) {
+      return true;
+    }
+    // get the seg list  from the frist audio variant key    
+    const variantKeys = this.getAudioVariantKeys();
+    const audioSegList = this.playlistsAudio[variantKeys[0]].items.PlaylistItem;
+    let totalAudioDuration = 0;
+    let audioCount = 0;
+    audioSegList.map(seg => {
+      if (seg.get("duration")) {
+        audioCount++;
+        totalAudioDuration += seg.get("duration");
+      }
+    })
+    const avgAudioDuration = totalAudioDuration / audioCount;
+
+    const bandwidths = Object.keys(this.playlistsVideo);
+    if (bandwidths.length === 0) {
+      return true;
+    }
+    const videoSegList = this.playlistsVideo[bandwidths[0]].items.PlaylistItem;
+    let totalVideoDuration = 0;
+    let videoCount = 0;
+    videoSegList.map(seg => {
+      if (seg.get("duration")) {
+        videoCount++;
+        totalVideoDuration += seg.get("duration");
+      }
+    })
+    const avgVideoDuration = totalVideoDuration / videoCount;
+
+    const diff = Math.abs(avgVideoDuration - avgAudioDuration);
+    if (diff > 0.250) {
+      return false;
+    }
+    return true;
   }
 
   _loadMediaManifest(mediaManifestUri, bandwidth, _injectMediaManifest) {
@@ -145,8 +262,8 @@ class HLSTruncateVod {
       const parser = m3u8.createStream();
 
       parser.on('m3u', m3u => {
-        if (!this.playlists[bandwidth]) {
-          this.playlists[bandwidth] = m3u;
+        if (!this.playlistsVideo[bandwidth]) {
+          this.playlistsVideo[bandwidth] = m3u;
         }
         let accDuration = 0;
         let prevAccDuration = 0;
@@ -183,11 +300,19 @@ class HLSTruncateVod {
 
         this.durationAudio = this.durationAudio === 0 ? accDuration : this.durationAudio;
 
-        this.playlists[bandwidth].items.PlaylistItem = m3u.items.PlaylistItem.slice(startPos, startPos + pos);
+        let totalDuration = 0;
+        m3u.items.PlaylistItem.forEach((item,index) => {
+          if (index < startPos) {
+            totalDuration += item.get("duration");
+          }
+        });
+        this.removedDurationFromStartVideo = totalDuration;
+
+        this.playlistsVideo[bandwidth].items.PlaylistItem = m3u.items.PlaylistItem.slice(startPos, startPos + pos);
         resolve();
       });
       parser.on('error', (err) => {
-        reject("Failed to parse M3U8: " + err);
+        reject("[hls-truncate]: Failed to parse M3U8: " + err);
       });
       if (!_injectMediaManifest) {
         fetch(mediaManifestUri)
@@ -200,14 +325,13 @@ class HLSTruncateVod {
       }
     });
   }
-  _loadAudioManifest(audioManifestUri, audioGroupId, audioLang, _injectAudioManifest) {
+
+  _loadAudioManifest(audioManifestUri, variantKey, _injectAudioManifest) {
     return new Promise((resolve, reject) => {
       const parser = m3u8.createStream();
-
-
       parser.on('m3u', m3u => {
-        if (!this.audioSegments[audioGroupId][audioLang].length) {
-          this.audioSegments[audioGroupId][audioLang] = m3u;
+        if (!this.playlistsAudio[variantKey]) {
+          this.playlistsAudio[variantKey] = m3u;
         }
         let accDuration = 0;
         let prevAccDuration = 0;
@@ -216,14 +340,14 @@ class HLSTruncateVod {
 
         if (this.startOffset) {
           let accStartOffset = 0;
-          m3u.items.PlaylistItem.map((item => {
-            if (accStartOffset + item.get('duration') <= this.startOffset) {
-              accStartOffset += item.get('duration');
+          for (let i = 0; i < m3u.items.PlaylistItem.length; i++) {
+            const pli = m3u.items.PlaylistItem[i];
+            accStartOffset += pli.get('duration');
+            if (accStartOffset <= this.removedDurationFromStartVideo) {
               startPos++;
+            } else {
+              break;
             }
-          }));
-          if ((accStartOffset > this.startVideoOffset) && startPos > 1) {
-            startPos--;
           }
         }
 
@@ -241,12 +365,11 @@ class HLSTruncateVod {
         if (this._similarSegItemDuration() && (accDuration - this.durationAudio) >= (this.durationAudio - prevAccDuration) && pos > 1) {
           pos--;
         }
-
-        this.audioSegments[audioGroupId][audioLang].items.PlaylistItem = m3u.items.PlaylistItem.slice(startPos, startPos + pos);
+        this.playlistsAudio[variantKey].items.PlaylistItem = m3u.items.PlaylistItem.slice(startPos, startPos + pos);
         resolve();
       });
       parser.on('error', (err) => {
-        reject("Failed to parse M3U8: " + err);
+        reject("[hls-truncate]: Failed to parse M3U8: " + err);
       });
       if (!_injectAudioManifest) {
         fetch(audioManifestUri)
@@ -255,51 +378,70 @@ class HLSTruncateVod {
           })
           .catch(reject);
       } else {
-        _injectAudioManifest(audioGroupId).pipe(parser);
+        _injectAudioManifest(variantKey).pipe(parser);
       }
     });
   }
 
-  _similarSegItemDuration() {
-    const groups = Object.keys(this.audioSegments);
-    if (groups.length === 0) {
-      return true;
-    }
-    const langs = Object.keys(this.audioSegments[groups[0]]);
-    if (langs.length === 0) {
-      return true;
-    }
-    const audioSegList = this.audioSegments[groups[0]][langs[0]].items.PlaylistItem;
-    let totalAudioDuration = 0;
-    let audioCount = 0;
-    audioSegList.map(seg => {
-      if (seg.get("duration")) {
-        audioCount++;
-        totalAudioDuration += seg.get("duration");
-      }
-    })
-    const avgAudioDuration = totalAudioDuration / audioCount;
+  _loadSubtitleManifest(subtitleManifestUri, variantKey, _injectSubtitleManifest) {
+    console.log(`[hls-truncate]: Loading subtitle manifest: ${subtitleManifestUri}`);
+    return new Promise((resolve, reject) => {
+      const parser = m3u8.createStream();
 
-    const bandwidths = Object.keys(this.playlists);
-    if (bandwidths.length === 0) {
-      return true;
-    }
-    const videoSegList = this.playlists[bandwidths[0]].items.PlaylistItem;
-    let totalVideoDuration = 0;
-    let videoCount = 0;
-    videoSegList.map(seg => {
-      if (seg.get("duration")) {
-        videoCount++;
-        totalVideoDuration += seg.get("duration");
-      }
-    })
-    const avgVideoDuration = totalVideoDuration / videoCount;
+      parser.on('m3u', m3u => {
+        if (!this.playlistsSubtitles[variantKey]) {
+          this.playlistsSubtitles[variantKey] = m3u;
+        }
+        let accDuration = 0;
+        let prevAccDuration = 0;
+        let pos = 0;
+        let startPos = 0;
 
-    const diff = Math.abs(avgVideoDuration - avgAudioDuration);
-    if (diff > 0.250) {
-      return false;
-    }
-    return true;
+        if (this.startOffset) {
+          let accStartOffset = 0;
+          for (let i = 0; i < m3u.items.PlaylistItem.length; i++) {
+            const pli = m3u.items.PlaylistItem[i];
+            accStartOffset += pli.get('duration');
+            if (accStartOffset <= this.removedDurationFromStartVideo) {
+              startPos++;
+            } else {
+              break;
+            }
+          }
+        }
+
+        m3u.items.PlaylistItem.slice(startPos).map((item => {
+          if (accDuration <= this.durationAudio) {
+            prevAccDuration = accDuration;
+            accDuration += item.get('duration');
+            pos++;
+          }
+        }));
+
+        // Logic to find the nearest segment in time:
+        // At this stage accDuration is greater than the target duration.
+        // If not closer to the target than prevAccDuration, step back a segment.
+        if ((accDuration - this.durationAudio) >= (this.durationAudio - prevAccDuration) && pos > 1) {
+          pos--;
+        }
+        this.playlistsSubtitles[variantKey].items.PlaylistItem = m3u.items.PlaylistItem.slice(startPos, startPos + pos);
+        resolve();
+      });
+
+      parser.on('error', (err) => {
+        reject("[hls-truncate]: Failed to parse M3U8: " + err);
+      });
+
+      if (!_injectSubtitleManifest) {
+        fetch(subtitleManifestUri)
+          .then(res => {
+            res.body.pipe(parser);
+          })
+          .catch(reject);
+      } else {
+        _injectSubtitleManifest(variantKey).pipe(parser);
+      }
+    });
   }
 
 }
