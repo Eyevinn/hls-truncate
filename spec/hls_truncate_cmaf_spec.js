@@ -162,7 +162,6 @@ describe("HLSTruncateVod", () => {
         })
     });
   });
-
   describe("for Demuxed CMAF HLS Vods which have different segments durations,", () => {
     let mockMasterManifest;
     let mockMediaManifest;
@@ -218,6 +217,37 @@ describe("HLSTruncateVod", () => {
       
     });
 
+    it("cuts to the closest segment when requesting unaligned duration with equal time between them and has start offset, CASE 2", done => {
+      const mockVod = new HLSTruncateVod('http://mock.com/mock.m3u8', 60, { offset: 18 });
+      mockMasterManifest3 = () => {
+        return fs.createReadStream('testvectors/cmaf/hls_2_demux_diff_len/master.m3u8')
+      };
+      mockMediaManifest3 = (bw) => {
+        const bwmap = {
+          3500000: "3500000"
+        }
+        return fs.createReadStream(`testvectors/cmaf/hls_2_demux_diff_len/test-video=${bwmap[bw]}.m3u8`);
+      };
+      mockAudioManifest3 = () => {
+        return fs.createReadStream(`testvectors/cmaf/hls_2_demux_diff_len/test-audio=256000.m3u8`);
+      };
+      mockVod.load(mockMasterManifest3, mockMediaManifest3, mockAudioManifest3)
+        .then(() => {
+          const bandwidths = mockVod.getBandwidths();
+          const videoManifest = mockVod.getMediaManifest(bandwidths[0]);
+          const audioManifest = mockVod.getAudioManifest("audio-aacl-256", "sv");
+          const linesVideo = videoManifest.split("\n");
+          const linesAudio = audioManifest.split("\n");
+          const durationVideo = calcDuration(videoManifest);
+          const durationAudio = calcDuration(audioManifest);
+          expect(durationVideo).toEqual(57.599999999999994);
+          expect(durationAudio).toEqual(59.99199999999999);
+          expect(linesVideo[5]).toEqual("video-1/3.ts");
+          expect(linesAudio[5]).toEqual("audio/3.aac");
+          done();
+        })
+    });
+
     it("can create a 6 second long HLS by truncating a 30 sec HLS", done => {
       const mockVod = new HLSTruncateVod('http://mock.com/mock.m3u8', 6, {});
 
@@ -237,7 +267,7 @@ describe("HLSTruncateVod", () => {
     it("creates a 176.16 second long HLS from a 176.16 second HLS when requesting 190 second duration", done => {
       const mockVod = new HLSTruncateVod('http://mock.com/mock.m3u8', 190, {});
 
-      mockVod.load(mockMasterManifest, mockMediaManifest,mockAudioManifest)
+      mockVod.load(mockMasterManifest, mockMediaManifest, mockAudioManifest)
         .then(() => {
           const bandwidths = mockVod.getBandwidths();
           const videoManifest = mockVod.getMediaManifest(bandwidths[0]);
@@ -329,38 +359,6 @@ describe("HLSTruncateVod", () => {
         })
     });
   });
-
-  it("cuts to the closest segment when requesting unaligned duration with equal time between them and has start offset, CASE 2", done => {
-    const mockVod = new HLSTruncateVod('http://mock.com/mock.m3u8', 60, { offset: 18 });
-    mockMasterManifest3 = () => {
-      return fs.createReadStream('testvectors/cmaf/hls_2_demux_diff_len/master.m3u8')
-    };    
-    mockMediaManifest3 = (bw) => {
-      const bwmap = {
-        3500000: "3500000"
-      }
-      return fs.createReadStream(`testvectors/cmaf/hls_2_demux_diff_len/test-video=${bwmap[bw]}.m3u8`);
-    };
-    mockAudioManifest3 = () => {
-      return fs.createReadStream(`testvectors/cmaf/hls_2_demux_diff_len/test-audio=256000.m3u8`);
-    };
-    mockVod.load(mockMasterManifest3, mockMediaManifest3, mockAudioManifest3)
-      .then(() => {
-        const bandwidths = mockVod.getBandwidths();
-        const videoManifest = mockVod.getMediaManifest(bandwidths[0]);
-        const audioManifest = mockVod.getAudioManifest("audio-aacl-256", "sv");
-        const linesVideo = videoManifest.split("\n");
-        const linesAudio = audioManifest.split("\n");
-        const durationVideo = calcDuration(videoManifest);
-        const durationAudio = calcDuration(audioManifest);
-        expect(durationVideo).toEqual(57.599999999999994);
-        expect(durationAudio).toEqual(59.99199999999999);
-        expect(linesVideo[5]).toEqual("video-1/3.ts");
-        expect(linesAudio[5]).toEqual("audio/3.aac");
-        done();
-      })
-  });
-
   describe("for Demuxed CMAF HLS Vods with subtitles,", () => {
     let mockMasterManifest;
     let mockMediaManifest;

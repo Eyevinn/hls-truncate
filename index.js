@@ -384,7 +384,6 @@ class HLSTruncateVod {
   }
 
   _loadSubtitleManifest(subtitleManifestUri, variantKey, _injectSubtitleManifest) {
-    console.log(`[hls-truncate]: Loading subtitle manifest: ${subtitleManifestUri}`);
     return new Promise((resolve, reject) => {
       const parser = m3u8.createStream();
 

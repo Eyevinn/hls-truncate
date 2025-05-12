@@ -176,10 +176,10 @@ describe("HLSTruncateVod,", () => {
           return mockVod2.load(mockMasterManifest, mockMediaManifest, mockAudioManifest);
         })
         .then(() => {
-          const audioManifest = mockVod2.getAudioManifest("aac", "en");
-          const duration = calcDuration(audioManifest);
-          expect(duration).toEqual(12.012);
-          done();
+            const audioManifest = mockVod2.getAudioManifest("aac", "en");
+            const duration = calcDuration(audioManifest);
+            expect(duration).toEqual(12.012);
+            done();
         })
     });
 
@@ -305,6 +305,164 @@ describe("HLSTruncateVod,", () => {
           expect(durationAudio).toEqual(9.6);
           done();
         })
+    });
+  });
+  describe("for Demuxed TS HLS Vods with subtitles,", () => {
+    let mockMasterManifest;
+    let mockMediaManifest;
+    let mockAudioManifest;
+    let mockSubtitleManifest;
+
+    beforeEach(() => {
+      mockMasterManifest = () => {
+        return fs.createReadStream('testvectors/hls_1_demux_subs/master.m3u8')
+      };
+      mockMediaManifest = (bw) => {
+        return fs.createReadStream(`testvectors/hls_1_demux_subs/8850073.m3u8`);
+      };
+      mockAudioManifest = (g, l) => {
+        return fs.createReadStream(`testvectors/hls_1_demux_subs/aac-en.m3u8`);
+      };
+      mockSubtitleManifest = (groupId, lang) => {
+        return fs.createReadStream(`testvectors/hls_1_demux_subs/subs-en.m3u8`);
+      };
+    });
+
+    it("can create a 6 second long HLS with subtitles by truncating a longer HLS", done => {
+      const mockVod = new HLSTruncateVod('http://mock.com/mock.m3u8', 6, {});
+
+      mockVod.load(mockMasterManifest, mockMediaManifest, mockAudioManifest, mockSubtitleManifest)
+        .then(() => {
+          const bandwidths = mockVod.getBandwidths();
+          const videoManifest = mockVod.getMediaManifest(bandwidths[0]);
+          const audioManifest = mockVod.getAudioManifest("aac", "en");
+          const subtitleManifest = mockVod.getSubtitleManifest("subs", "en");
+          
+          const durationVideo = calcDuration(videoManifest);
+          const durationAudio = calcDuration(audioManifest);
+          const durationSubtitle = calcDuration(subtitleManifest);
+          
+          expect(durationVideo).toEqual(6.006);
+          expect(durationAudio).toEqual(6.006);
+          expect(durationSubtitle).toEqual(6.006);
+          done();
+        });
+    });
+
+    it("creates a truncated HLS with subtitles when requesting longer than available duration", done => {
+      const mockVod = new HLSTruncateVod('http://mock.com/mock.m3u8', 150, {});
+
+      mockVod.load(mockMasterManifest, mockMediaManifest, mockAudioManifest, mockSubtitleManifest)
+        .then(() => {
+          const bandwidths = mockVod.getBandwidths();
+          const videoManifest = mockVod.getMediaManifest(bandwidths[0]);
+          const audioManifest = mockVod.getAudioManifest("aac", "en");
+          const subtitleManifest = mockVod.getSubtitleManifest("subs", "en");
+          
+          const durationVideo = calcDuration(videoManifest);
+          const durationAudio = calcDuration(audioManifest);
+          const durationSubtitle = calcDuration(subtitleManifest);
+          
+          // The test files have 21 segments of 6.006 seconds each
+          // Total duration should be around 126.126 seconds
+          expect(durationVideo).toEqual(126.126);
+          expect(durationAudio).toEqual(126.126);
+          expect(durationSubtitle).toEqual(126.126);
+          done();
+        });
+    });
+
+    it("cuts subtitles to the closest segment when requesting unaligned duration", done => {
+      const mockVod1 = new HLSTruncateVod('http://mock.com/mock.m3u8', 4, {});
+      const mockVod2 = new HLSTruncateVod('http://mock.com/mock.m3u8', 8, {});
+
+      mockVod1.load(mockMasterManifest, mockMediaManifest, mockAudioManifest, mockSubtitleManifest)
+        .then(() => {
+          const subtitleManifest = mockVod1.getSubtitleManifest("subs", "en");
+          const duration = calcDuration(subtitleManifest);
+          expect(duration).toEqual(6.006);
+          return mockVod2.load(mockMasterManifest, mockMediaManifest, mockAudioManifest, mockSubtitleManifest);
+        })
+        .then(() => {
+          const subtitleManifest = mockVod2.getSubtitleManifest("subs", "en");
+          const duration = calcDuration(subtitleManifest);
+          expect(duration).toEqual(6.006);
+          done();
+        });
+    });
+
+    it("can trim the beginning of subtitles if start offset is requested", done => {
+      const mockVod = new HLSTruncateVod('http://mock.com/mock.m3u8', 12, { offset: 12 });
+
+      mockVod.load(mockMasterManifest, mockMediaManifest, mockAudioManifest, mockSubtitleManifest)
+        .then(() => {
+          const subtitleManifest = mockVod.getSubtitleManifest("subs", "en");
+          const lines = subtitleManifest.split("\n");
+          
+          // With 6.006 second segments and a 12 second offset, we should skip only 1 segment
+          // So we should start from segment 33 (not 34)
+          expect(lines[8]).toEqual("level1/seg_33.ts");
+          
+          const duration = calcDuration(subtitleManifest);
+          expect(duration).toEqual(12.012);
+          done();
+        });
+    });
+
+    it("provides methods to get subtitle groups and languages", done => {
+      const mockVod = new HLSTruncateVod('http://mock.com/mock.m3u8', 6, {});
+
+      mockVod.load(mockMasterManifest, mockMediaManifest, mockAudioManifest, mockSubtitleManifest)
+        .then(() => {
+          const subtitleGroups = mockVod.getSubtitleGroupIds();
+          expect(subtitleGroups).toContain("subs");
+          
+          const subtitleLanguages = mockVod.getSubtitleLanguagesForGroupId("subs");
+          expect(subtitleLanguages).toContain("en");
+          
+          done();
+        })
+        .catch(err => {
+          console.error("Test failed:", err);
+          done.fail(err);
+        });
+    });
+
+    it("cuts subtitles to the closest segment when requesting unaligned duration with start offset", done => {
+      const mockVod = new HLSTruncateVod('http://mock.com/mock.m3u8', 18, { offset: 12 });
+
+      mockVod.load(mockMasterManifest, mockMediaManifest, mockAudioManifest, mockSubtitleManifest)
+        .then(() => {
+          const bandwidths = mockVod.getBandwidths();
+          const videoManifest = mockVod.getMediaManifest(bandwidths[0]);
+          const audioManifest = mockVod.getAudioManifest("aac", "en");
+          const subtitleManifest = mockVod.getSubtitleManifest("subs", "en");
+          
+          const linesVideo = videoManifest.split("\n");
+          const linesAudio = audioManifest.split("\n");
+          const linesSubtitle = subtitleManifest.split("\n");
+          
+          const durationVideo = calcDuration(videoManifest);
+          const durationAudio = calcDuration(audioManifest);
+          const durationSubtitle = calcDuration(subtitleManifest);
+          
+          // Check durations
+          expect(durationVideo).toEqual(18.018);
+          expect(durationAudio).toEqual(18.018);
+          expect(durationSubtitle).toEqual(18.018);
+          
+          // Check that we're starting from the correct segments (after offset)
+          // For a 12-second offset with 6.006-second segments, we should start at segment 33
+          expect(linesVideo[8]).toEqual("level1/seg_33.ts");
+          expect(linesAudio[8]).toEqual("audio/seg_en_33.ts");
+          expect(linesSubtitle[8]).toEqual("level1/seg_33.ts");
+          
+          done();
+        })
+        .catch(err => {
+          console.error("Test failed:", err);
+          done.fail(err);
+        });
     });
   });
 });

@@ -4,7 +4,7 @@
   "description": "NPM library to truncate an HLS VOD manifest into a new VOD manifest",
   "main": "index.js",
   "scripts": {
-    "test": "jasmine",
+    "test": "jasmine --random=false --seed=05835",
     "postversion": "git push && git push --tags",
     "coverage": "nyc npm test && nyc report",
     "coveralls": "nyc npm test && nyc report --reporter=text-lcov | coveralls"
