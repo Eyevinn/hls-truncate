@@ -24,27 +24,28 @@ class HLSTruncateVod {
 
       parser.on('m3u', m3u => {
         this.m3u = m3u;
-        let manifestPromisesVideo = [];
-        let manifestPromisesAudio = [];
-        let manifestPromisesSubtitles = [];
+        let videoManifestData = [];
+        let audioManifestData = [];
+        let subtitleManifestData = [];
         let baseUrl;
         const m = this.masterManifestUri.match(/^(.*)\/.*?$/);
         if (m) {
           baseUrl = m[1] + '/';
         }
 
+        // Collect information about manifests but don't start loading them yet
         for (let i = 0; i < m3u.items.StreamItem.length; i++) {
           const streamItem = m3u.items.StreamItem[i];
           this.bandwiths.push(streamItem.get('bandwidth'));
           const manifestUrlVideo = url.resolve(baseUrl, streamItem.get('uri'));
-          // Sometimes the audio manifest can be under a #EXT-X-STREAM-INF tag. 
-          // We need to check if the media item is an audio item. 
-          // If not, we need to load the media manifest.
-          // NOTE: hls-truncate does not support audio streams under a #EXT-X-STREAM-INF tag.
           if (!m3u.items.MediaItem.find((mediaItem) => mediaItem.get("type") === "AUDIO" && mediaItem.get("uri") == streamItem.get("uri"))) {
-            manifestPromisesVideo.push(this._loadMediaManifest(manifestUrlVideo, streamItem.get('bandwidth'), _injectMediaManifest));
+            videoManifestData.push({
+              url: manifestUrlVideo,
+              bandwidth: streamItem.get('bandwidth')
+            });
           } 
         }
+        
         if (m3u.items.MediaItem.length > 0) {
           for (let i = 0; i < m3u.items.MediaItem.length; i++) {
             const mediaItem = m3u.items.MediaItem[i];
@@ -53,21 +54,53 @@ class HLSTruncateVod {
               const lang = mediaItem.get("language") || mediaItem.get("name");
               const variantKey = this._getMediaVariantKey(groupId, lang);
               const manifestUrlAudio = url.resolve(baseUrl, mediaItem.get("uri"));
-              manifestPromisesAudio.push(this._loadAudioManifest(manifestUrlAudio, variantKey, _injectAudioManifest));
+              audioManifestData.push({
+                url: manifestUrlAudio,
+                variantKey: variantKey
+              });
             } else if (mediaItem.get("type") === "SUBTITLES") {
               const groupId = mediaItem.get("group-id");
               const lang = mediaItem.get("language") || mediaItem.get("name");
               const variantKey = this._getMediaVariantKey(groupId, lang);
               const manifestUrlSubtitles = url.resolve(baseUrl, mediaItem.get("uri"));
-              manifestPromisesSubtitles.push(this._loadSubtitleManifest(manifestUrlSubtitles, variantKey, _injectSubtitleManifest));
+              subtitleManifestData.push({
+                url: manifestUrlSubtitles,
+                variantKey: variantKey
+              });
             }
           }
         }
 
-        // Promise all on media manifest promises, audio and subs
-        Promise.all([...manifestPromisesVideo, ...manifestPromisesAudio, ...manifestPromisesSubtitles]).then(() => {
-          resolve();
-        }).catch(reject);
+        // Process manifests in strict sequence
+        const loadVideoManifests = () => {
+          console.log("Starting to load video manifests");
+          return Promise.all(videoManifestData.map(data => 
+            this._loadMediaManifest(data.url, data.bandwidth, _injectMediaManifest)
+          ));
+        };
+
+        const loadAudioManifests = () => {
+          console.log("Starting to load audio manifests");
+          return Promise.all(audioManifestData.map(data => 
+            this._loadAudioManifest(data.url, data.variantKey, _injectAudioManifest)
+          ));
+        };
+
+        const loadSubtitleManifests = () => {
+          console.log("Starting to load subtitle manifests");
+          return Promise.all(subtitleManifestData.map(data => 
+            this._loadSubtitleManifest(data.url, data.variantKey, _injectSubtitleManifest)
+          ));
+        };
+
+        // Execute in strict sequence
+        loadVideoManifests()
+          .then(() => loadAudioManifests())
+          .then(() => loadSubtitleManifests())
+          .then(() => {
+            resolve();
+          })
+          .catch(reject);
       });
       parser.on('error', (err) => {
         reject("[hls-truncate]: Failed to parse M3U8: " + err);
