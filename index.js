@@ -103,6 +103,7 @@ class HLSTruncateVod {
           .catch(reject);
       });
       parser.on('error', (err) => {
+        console.log("Error parsing master manifest: " + err); 
         reject("[hls-truncate]: Failed to parse M3U8: " + err);
       });
       if (!_injectMasterManifest) {
@@ -345,6 +346,7 @@ class HLSTruncateVod {
         resolve();
       });
       parser.on('error', (err) => {
+        console.log("Error parsing media manifest: " + err); 
         reject("[hls-truncate]: Failed to parse M3U8: " + err);
       });
       if (!_injectMediaManifest) {
@@ -392,16 +394,28 @@ class HLSTruncateVod {
           }
         }));
 
-        // Logic to find the nearest segment in time:
-        // At this stage accDuration is greater than the target duration.
-        // If not closer to the target than prevAccDuration, step back a segment.
-        if (this._similarSegItemDuration() && (accDuration - this.durationAudio) >= (this.durationAudio - prevAccDuration) && pos > 1) {
+        // Modified logic to ensure audio duration is >= video duration
+        // Only step back if we have similar segment durations AND
+        // stepping back would still leave us with enough audio
+        if (this._similarSegItemDuration() && 
+            (accDuration - this.durationAudio) >= (this.durationAudio - prevAccDuration) && 
+            pos > 1 && 
+            prevAccDuration >= this.durationAudio) {
           pos--;
+          accDuration = prevAccDuration;
         }
+        
+        // If we're still short on audio, add one more segment if available
+        if (accDuration < this.durationAudio && 
+            startPos + pos < m3u.items.PlaylistItem.length) {
+          pos++;
+        }
+        
         this.playlistsAudio[variantKey].items.PlaylistItem = m3u.items.PlaylistItem.slice(startPos, startPos + pos);
         resolve();
       });
       parser.on('error', (err) => {
+        console.log("Error parsing audio manifest: " + err); 
         reject("[hls-truncate]: Failed to parse M3U8: " + err);
       });
       if (!_injectAudioManifest) {
@@ -442,8 +456,9 @@ class HLSTruncateVod {
           }
         }
 
+        // Use the video duration (this.duration) as reference for subtitles
         m3u.items.PlaylistItem.slice(startPos).map((item => {
-          if (accDuration <= this.durationAudio) {
+          if (accDuration <= this.duration) {
             prevAccDuration = accDuration;
             accDuration += item.get('duration');
             pos++;
@@ -453,14 +468,16 @@ class HLSTruncateVod {
         // Logic to find the nearest segment in time:
         // At this stage accDuration is greater than the target duration.
         // If not closer to the target than prevAccDuration, step back a segment.
-        if ((accDuration - this.durationAudio) >= (this.durationAudio - prevAccDuration) && pos > 1) {
+        if ((accDuration - this.duration) >= (this.duration - prevAccDuration) && pos > 1) {
           pos--;
         }
+        
         this.playlistsSubtitles[variantKey].items.PlaylistItem = m3u.items.PlaylistItem.slice(startPos, startPos + pos);
         resolve();
       });
 
       parser.on('error', (err) => {
+        console.log("Error parsing subtitle manifest: " + err); 
         reject("[hls-truncate]: Failed to parse M3U8: " + err);
       });
 

@@ -364,6 +364,7 @@ describe("HLSTruncateVod", () => {
     let mockMediaManifest;
     let mockAudioManifest;
     let mockSubtitleManifest;
+    let mock_m3u8_1_demux_diff_len_subs;
 
     beforeEach(() => {
       mockMasterManifest = () => {
@@ -378,6 +379,20 @@ describe("HLSTruncateVod", () => {
       mockSubtitleManifest = (groupId, lang) => {
         return fs.createReadStream(`testvectors/cmaf/hls_1_demux_subs/test-subs.m3u8`);
       };
+      mock_m3u8_1_demux_diff_len_subs = {
+        master: () => {
+          return fs.createReadStream('testvectors/cmaf/hls_2_demux_diff_len_subs/master.m3u8')
+        },
+        media: () => {
+          return fs.createReadStream(`testvectors/cmaf/hls_2_demux_diff_len_subs/video-1.m3u8`)
+        },
+        audio: () => {
+          return fs.createReadStream(`testvectors/cmaf/hls_2_demux_diff_len_subs/audio.m3u8`)
+        },
+        subtitle: () => {
+          return fs.createReadStream(`testvectors/cmaf/hls_2_demux_diff_len_subs/text-sv.m3u8`)
+        }
+      }
     });
 
     it("can create a 6 second long HLS with subtitles by truncating a longer HLS", done => {
@@ -421,7 +436,7 @@ describe("HLSTruncateVod", () => {
         });
     });
 
-    it("cuts subtitles to the closest segment when requesting unaligned duration", done => {
+    fit("cuts subtitles to the closest segment when requesting unaligned duration, CASE 1", done => {
       const mockVod1 = new HLSTruncateVod('http://mock.com/mock.m3u8', 4, {});
       const mockVod2 = new HLSTruncateVod('http://mock.com/mock.m3u8', 5, {});
 
@@ -438,6 +453,45 @@ describe("HLSTruncateVod", () => {
           expect(duration).toEqual(6);
           done();
         });
+    });
+
+    it("cuts subtitles to the closest segment when requesting unaligned duration, CASE 2", done => {
+      const mockVod1 = new HLSTruncateVod('http://mock.com/mock.m3u8', 90, { });
+      const mockm3u8 = mock_m3u8_1_demux_diff_len_subs;
+
+      mockVod1.load(mockm3u8.master, mockm3u8.media, mockm3u8.audio, mockm3u8.subtitle)
+        .then(() => {
+          const subtitleManifest = mockVod1.getSubtitleManifest("audio", "sv");
+          const audioManifest = mockVod1.getAudioManifest("text", "sv");
+          const videoManifest = mockVod1.getMediaManifest(mockVod1.getBandwidths()[0]);
+          
+          const durationVideo = calcDuration(videoManifest);
+          const durationAudio = calcDuration(audioManifest);
+          const durationSubtitle = calcDuration(subtitleManifest);
+
+          const linesVideo = videoManifest.split("\n");
+          const linesAudio = audioManifest.split("\n");
+          const linesSubtitle = subtitleManifest.split("\n");
+
+          // linesVideo.map((i,o) => console.log(i,o));
+          // linesAudio.map((i,o) => console.log(i,o));
+          // linesSubtitle.map((i,o) => console.log(i,o));
+
+          expect(durationVideo).toEqual(92);
+          expect(durationAudio).toEqual(96.06800000000001);
+          expect(durationSubtitle).toEqual(90);
+
+          expect(linesVideo[9]).toEqual("video-1/1.m4s");
+          expect(linesAudio[9]).toEqual("audio/1.m4s");
+          expect(linesSubtitle[9]).toEqual("text-sv/1.vtt");
+
+          expect(linesVideo[34]).toEqual("video-1/15.m4s");
+          expect(linesAudio[36]).toEqual("audio/16.m4s");
+          expect(linesSubtitle[34]).toEqual("text-sv/15.vtt");
+          
+
+          done();
+        })
     });
 
     it("can trim the beginning of subtitles if start offset is requested", done => {
