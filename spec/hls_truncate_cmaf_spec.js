@@ -559,12 +559,10 @@ describe("HLSTruncateVod", () => {
         .then(() => {
 
           const subtitleGroups = mockVod.getSubtitleGroupIds();
-          console.log("Subtitle groups:", subtitleGroups);
           
           expect(subtitleGroups).toContain("teststream");
           
           const subtitleLanguages = mockVod.getSubtitleLanguagesForGroupId("teststream");
-          console.log("Subtitle languages:", subtitleLanguages);
           
           expect(subtitleLanguages).toContain("sv");
           

@@ -100,7 +100,6 @@ class HLSTruncateVod {
           .catch(reject);
       });
       parser.on('error', (err) => {
-        console.log("Error parsing master manifest: " + err); 
         reject("[hls-truncate]: Failed to parse M3U8: " + err);
       });
       if (!_injectMasterManifest) {
@@ -343,7 +342,6 @@ class HLSTruncateVod {
         resolve();
       });
       parser.on('error', (err) => {
-        console.log("Error parsing media manifest: " + err); 
         reject("[hls-truncate]: Failed to parse M3U8: " + err);
       });
       if (!_injectMediaManifest) {
@@ -412,7 +410,6 @@ class HLSTruncateVod {
         resolve();
       });
       parser.on('error', (err) => {
-        console.log("Error parsing audio manifest: " + err); 
         reject("[hls-truncate]: Failed to parse M3U8: " + err);
       });
       if (!_injectAudioManifest) {
@@ -474,7 +471,6 @@ class HLSTruncateVod {
       });
 
       parser.on('error', (err) => {
-        console.log("Error parsing subtitle manifest: " + err); 
         reject("[hls-truncate]: Failed to parse M3U8: " + err);
       });
 
