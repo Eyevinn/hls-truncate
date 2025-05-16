@@ -73,21 +73,18 @@ class HLSTruncateVod {
 
         // Process manifests in strict sequence
         const loadVideoManifests = () => {
-          console.log("Starting to load video manifests");
           return Promise.all(videoManifestData.map(data => 
             this._loadMediaManifest(data.url, data.bandwidth, _injectMediaManifest)
           ));
         };
 
         const loadAudioManifests = () => {
-          console.log("Starting to load audio manifests");
           return Promise.all(audioManifestData.map(data => 
             this._loadAudioManifest(data.url, data.variantKey, _injectAudioManifest)
           ));
         };
 
         const loadSubtitleManifests = () => {
-          console.log("Starting to load subtitle manifests");
           return Promise.all(subtitleManifestData.map(data => 
             this._loadSubtitleManifest(data.url, data.variantKey, _injectSubtitleManifest)
           ));
