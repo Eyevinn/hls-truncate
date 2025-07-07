@@ -8,8 +8,10 @@ class HLSTruncateVod {
     this.playlistsVideo = {};
     this.duration = duration;
     this.durationAudio = 0;
+    this.durationSubtitles = 0;
     this.startVideoOffset = 0;
     this.removedDurationFromStartVideo = 0;
+    this.videoSegmentsRemovedAtStart = 0;
     this.bandwiths = [];
     this.playlistsAudio = {};
     this.playlistsSubtitles = {};
@@ -310,6 +312,7 @@ class HLSTruncateVod {
           }));
 
           this.startVideoOffset = this.startVideoOffset === 0 ? accStartOffset : this.startVideoOffset;
+          this.videoSegmentsRemovedAtStart = startPos;
         }
 
         m3u.items.PlaylistItem.slice(startPos).map((item => {
@@ -329,6 +332,7 @@ class HLSTruncateVod {
         }
 
         this.durationAudio = this.durationAudio === 0 ? accDuration : this.durationAudio;
+        this.durationSubtitles = this.durationSubtitles === 0 ? accDuration : this.durationSubtitles;
 
         let totalDuration = 0;
         m3u.items.PlaylistItem.forEach((item,index) => {
@@ -405,6 +409,23 @@ class HLSTruncateVod {
             startPos + pos < m3u.items.PlaylistItem.length) {
           pos++;
         }
+
+        // NEW LOGIC: Compensate for different segment durations when offset is used
+        // If we had an offset and removed more video segments than audio segments at the start,
+        // we need to keep more audio segments at the end to match the video duration
+        if (this.startOffset && !this._similarSegItemDuration()) {
+          // Calculate how many video segments were removed at the start
+          const videoSegmentsRemoved = this.videoSegmentsRemovedAtStart;
+          
+          // Calculate how many audio segments were removed at the start
+          const audioSegmentsRemoved = startPos;
+          
+          // If we removed more video segments than audio segments, add one more audio segment
+          if (videoSegmentsRemoved > audioSegmentsRemoved && 
+              startPos + pos < m3u.items.PlaylistItem.length) {
+            pos++;
+          }
+        }
         
         this.playlistsAudio[variantKey].items.PlaylistItem = m3u.items.PlaylistItem.slice(startPos, startPos + pos);
         resolve();
@@ -450,9 +471,9 @@ class HLSTruncateVod {
           }
         }
 
-        // Use the video duration (this.duration) as reference for subtitles
+        // Use the subtitle duration as reference for subtitles
         m3u.items.PlaylistItem.slice(startPos).map((item => {
-          if (accDuration <= this.duration) {
+          if (accDuration <= this.durationSubtitles) {
             prevAccDuration = accDuration;
             accDuration += item.get('duration');
             pos++;
@@ -462,8 +483,25 @@ class HLSTruncateVod {
         // Logic to find the nearest segment in time:
         // At this stage accDuration is greater than the target duration.
         // If not closer to the target than prevAccDuration, step back a segment.
-        if ((accDuration - this.duration) >= (this.duration - prevAccDuration) && pos > 1) {
+        if ((accDuration - this.durationSubtitles) >= (this.durationSubtitles - prevAccDuration) && pos > 1) {
           pos--;
+        }
+
+        // NEW LOGIC: Compensate for different segment durations when offset is used
+        // If we had an offset and removed more video segments than subtitle segments at the start,
+        // we need to keep more subtitle segments at the end to match the video duration
+        if (this.startOffset && !this._similarSegItemDuration()) {
+          // Calculate how many video segments were removed at the start
+          const videoSegmentsRemoved = this.videoSegmentsRemovedAtStart;
+          
+          // Calculate how many subtitle segments were removed at the start
+          const subtitleSegmentsRemoved = startPos;
+          
+          // If we removed more video segments than subtitle segments, add one more subtitle segment
+          if (videoSegmentsRemoved > subtitleSegmentsRemoved && 
+              startPos + pos < m3u.items.PlaylistItem.length) {
+            pos++;
+          }
         }
         
         this.playlistsSubtitles[variantKey].items.PlaylistItem = m3u.items.PlaylistItem.slice(startPos, startPos + pos);

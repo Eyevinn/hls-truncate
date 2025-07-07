@@ -140,6 +140,7 @@ describe("HLSTruncateVod", () => {
           const manifest = mockVod1.getAudioManifest("audio-aacl-256", "sv");
           const duration = calcDuration(manifest);
           expect(duration).toEqual(3);
+          console.log(manifest);
           return mockVod2.load(mockMasterManifest, mockMediaManifest, mockAudioManifest);
         })
         .then(() => {
@@ -408,6 +409,20 @@ describe("HLSTruncateVod", () => {
           return fs.createReadStream(`testvectors/cmaf/hls_3_demux_diff_len_subs/text-sv.m3u8`)
         }
       }
+      mock_m3u8_4_demux_diff_len_subs = {
+        master: () => {
+          return fs.createReadStream('testvectors/cmaf/hls_4_demux_diff_len_subs/master.m3u8')
+        },
+        media: () => {
+          return fs.createReadStream(`testvectors/cmaf/hls_4_demux_diff_len_subs/video-1.m3u8`)
+        },
+        audio: () => {
+          return fs.createReadStream(`testvectors/cmaf/hls_4_demux_diff_len_subs/audio.m3u8`)
+        },
+        subtitle: () => {
+          return fs.createReadStream(`testvectors/cmaf/hls_4_demux_diff_len_subs/text-sv.m3u8`)
+        }
+      }
     });
 
     it("can create a 6 second long HLS with subtitles by truncating a longer HLS", done => {
@@ -505,31 +520,46 @@ describe("HLSTruncateVod", () => {
     });
 
     it("cuts subtitles to the closest segment when requesting unaligned duration, CASE 3", done => {
-      const mockVod1 = new HLSTruncateVod('http://mock.com/mock.m3u8', 4, { offset: 0 });
-      const mockm3u8 = mock_m3u8_3_demux_diff_len_subs;
+      const mockVod1 = new HLSTruncateVod('http://mock.com/mock.m3u8', 600, { offset:1 });
+      const mockm3u8 = mock_m3u8_4_demux_diff_len_subs;
 
       mockVod1.load(mockm3u8.master, mockm3u8.media, mockm3u8.audio, mockm3u8.subtitle)
         .then(() => {
-          const subtitleManifest = mockVod1.getSubtitleManifest("audio", "sv");
-          const audioManifest = mockVod1.getAudioManifest("text", "sv");
+          const subtitleManifest = mockVod1.getSubtitleManifest("text", "sv");
+          const audioManifest = mockVod1.getAudioManifest("audio", "sv");
           const videoManifest = mockVod1.getMediaManifest(mockVod1.getBandwidths()[0]);
           
-          const durationVideo = calcDuration(videoManifest);
-          const durationAudio = calcDuration(audioManifest);
-          const durationSubtitle = calcDuration(subtitleManifest);
-
           const linesVideo = videoManifest.split("\n");
           const linesAudio = audioManifest.split("\n");
           const linesSubtitle = subtitleManifest.split("\n");
 
-          expect(durationVideo).toEqual(7.68);
-          expect(durationAudio).toEqual(12.054);
-          expect(durationSubtitle).toEqual(6);
+          // linesVideo.map((i,o) => console.log(i,o));
+          // linesAudio.map((i,o) => console.log(i,o));
+          // linesSubtitle.map((i,o) => console.log(i,o));
 
-          expect(linesVideo[6]).toEqual("video-1/1.ts");
-          expect(linesAudio[8]).toEqual("audio/2.aac");
-          expect(linesSubtitle[6]).toEqual("text-sv/1.vtt");
+          const durationLines = linesVideo.filter(line => line.startsWith('#EXTINF:'));
+          const durationLinesAudio = linesAudio.filter(line => line.startsWith('#EXTINF:'));
+          const durationLinesSubtitle = linesSubtitle.filter(line => line.startsWith('#EXTINF:'));
+          const duration = durationLines.reduce((acc, line) => acc + parseFloat(line.split(':')[1]), 0).toFixed(3);
+          const durationAudio = durationLinesAudio.reduce((acc, line) => acc + parseFloat(line.split(':')[1]), 0).toFixed(3);
+          const durationSubtitle = durationLinesSubtitle.reduce((acc, line) => acc + parseFloat(line.split(':')[1]), 0).toFixed(3);
+          // console.log(`Duration Video: ${duration} ms`);
+          // console.log(`Duration Audio: ${durationAudio} ms`);
+          // console.log(`Duration Subtitle: ${durationSubtitle} ms`);
 
+          expect(duration).toEqual("602.600");
+          expect(durationAudio).toEqual("611.378");
+          expect(durationSubtitle).toEqual("605.040");
+
+          expect(linesVideo[6]).toEqual("https://mockvodfiles.a2d-dev.tv/trailers/trailer1/video-1/2.ts");
+          expect(linesVideo[151]).toEqual("https://mockvodfiles.a2d-dev.tv/channel64/bsubs/20342701/video-1/60.ts");
+          expect(linesVideo[152]).toEqual("#EXT-X-ENDLIST");
+          expect(linesAudio[221]).toEqual("https://mockvodfiles.a2d-dev.tv/channel64/bsubs/20342701/audio/91.aac");
+          expect(linesAudio[222]).toEqual("#EXT-X-ENDLIST");
+          expect(linesSubtitle[6]).toEqual("https://mockvodfiles.a2d.tv/channel64/webvtt/empty.vtt?id=97");
+          expect(linesSubtitle[213]).toEqual("https://mockvodfiles.a2d-dev.tv/channel64/bsubs/20342701/text-sv/91.vtt");
+          expect(linesSubtitle[214]).toEqual("#EXT-X-ENDLIST");
+          
           done();
         })
     });
