@@ -564,6 +564,45 @@ describe("HLSTruncateVod", () => {
         })
     });
 
+    it("cuts subtitles to the closest segment when requesting unaligned duration, CASE 4", done => {
+      const mockVod1 = new HLSTruncateVod('http://mock.com/mock.m3u8', 600, { offset:0 });
+      const mockm3u8 = mock_m3u8_4_demux_diff_len_subs;
+
+      mockVod1.load(mockm3u8.master, mockm3u8.media, mockm3u8.audio, mockm3u8.subtitle)
+        .then(() => {
+          const subtitleManifest = mockVod1.getSubtitleManifest("text", "sv");
+          const audioManifest = mockVod1.getAudioManifest("audio", "sv");
+          const videoManifest = mockVod1.getMediaManifest(mockVod1.getBandwidths()[0]);
+          
+          const linesVideo = videoManifest.split("\n");
+          const linesAudio = audioManifest.split("\n");
+          const linesSubtitle = subtitleManifest.split("\n");
+
+          const durationLines = linesVideo.filter(line => line.startsWith('#EXTINF:'));
+          const durationLinesAudio = linesAudio.filter(line => line.startsWith('#EXTINF:'));
+          const durationLinesSubtitle = linesSubtitle.filter(line => line.startsWith('#EXTINF:'));
+          const duration = durationLines.reduce((acc, line) => acc + parseFloat(line.split(':')[1]), 0).toFixed(3);
+          const durationAudio = durationLinesAudio.reduce((acc, line) => acc + parseFloat(line.split(':')[1]), 0).toFixed(3);
+          const durationSubtitle = durationLinesSubtitle.reduce((acc, line) => acc + parseFloat(line.split(':')[1]), 0).toFixed(3);
+
+          expect(duration).toEqual("598.600");
+          expect(durationAudio).toEqual("599.388");
+          expect(durationSubtitle).toEqual("599.040");
+
+          expect(linesVideo[8]).toEqual("https://mockvodfiles.a2d-dev.tv/trailers/trailer1/video-1/1.ts");
+          expect(linesVideo[153]).toEqual("https://mockvodfiles.a2d-dev.tv/channel64/bsubs/20342701/video-1/59.ts");
+          expect(linesVideo[154]).toEqual("#EXT-X-ENDLIST");
+          expect(linesAudio[8]).toEqual("https://mockvodfiles.a2d-dev.tv/trailers/trailer1/audio/1.aac");
+          expect(linesAudio[217]).toEqual("https://mockvodfiles.a2d-dev.tv/channel64/bsubs/20342701/audio/89.aac");
+          expect(linesAudio[218]).toEqual("#EXT-X-ENDLIST");
+          expect(linesSubtitle[8]).toEqual("https://mockvodfiles.a2d.tv/channel64/webvtt/empty.vtt?id=96");
+          expect(linesSubtitle[213]).toEqual("https://mockvodfiles.a2d-dev.tv/channel64/bsubs/20342701/text-sv/89.vtt");
+          expect(linesSubtitle[214]).toEqual("#EXT-X-ENDLIST");
+          
+          done();
+        })
+    });
+
     it("can trim the beginning of subtitles if start offset is requested", done => {
       const mockVod = new HLSTruncateVod('http://mock.com/mock.m3u8', 9, { offset: 6 });
 
