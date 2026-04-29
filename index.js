@@ -1,6 +1,5 @@
 const m3u8 = require('@eyevinn/m3u8');
 const fetch = require('node-fetch');
-const url = require('url');
 
 class HLSTruncateVod {
   constructor(vodManifestUri, duration, options) {
@@ -39,7 +38,7 @@ class HLSTruncateVod {
         for (let i = 0; i < m3u.items.StreamItem.length; i++) {
           const streamItem = m3u.items.StreamItem[i];
           this.bandwiths.push(streamItem.get('bandwidth'));
-          const manifestUrlVideo = url.resolve(baseUrl, streamItem.get('uri'));
+          const manifestUrlVideo = new URL(streamItem.get('uri'), baseUrl).href;
           if (!m3u.items.MediaItem.find((mediaItem) => mediaItem.get("type") === "AUDIO" && mediaItem.get("uri") == streamItem.get("uri"))) {
             videoManifestData.push({
               url: manifestUrlVideo,
@@ -55,7 +54,7 @@ class HLSTruncateVod {
               const groupId = mediaItem.get("group-id");
               const lang = mediaItem.get("language") || mediaItem.get("name");
               const variantKey = this._getMediaVariantKey(groupId, lang);
-              const manifestUrlAudio = url.resolve(baseUrl, mediaItem.get("uri"));
+              const manifestUrlAudio = new URL(mediaItem.get("uri"), baseUrl).href;
               audioManifestData.push({
                 url: manifestUrlAudio,
                 variantKey: variantKey
@@ -64,7 +63,7 @@ class HLSTruncateVod {
               const groupId = mediaItem.get("group-id");
               const lang = mediaItem.get("language") || mediaItem.get("name");
               const variantKey = this._getMediaVariantKey(groupId, lang);
-              const manifestUrlSubtitles = url.resolve(baseUrl, mediaItem.get("uri"));
+              const manifestUrlSubtitles = new URL(mediaItem.get("uri"), baseUrl).href;
               subtitleManifestData.push({
                 url: manifestUrlSubtitles,
                 variantKey: variantKey
