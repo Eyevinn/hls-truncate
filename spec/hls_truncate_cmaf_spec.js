@@ -72,6 +72,36 @@ describe("HLSTruncateVod", () => {
         })
     });
 
+
+    it("keeps the init segment when no start offset is requested", done => {
+      const mockVod = new HLSTruncateVod('http://mock.com/mock.m3u8', 6, {});
+
+      mockVod.load(mockMasterManifest, mockMediaManifest)
+        .then(() => {
+          const bandwidths = mockVod.getBandwidths();
+          const manifest = mockVod.getMediaManifest(bandwidths[0]);
+          expect(manifest).toContain('#EXT-X-MAP:URI="test-video=2500000.m4s"');
+          done();
+        })
+    });
+
+    it("keeps the init segment when a start offset drops the first segment", done => {
+      const mockVod = new HLSTruncateVod('http://mock.com/mock.m3u8', 6, { offset: 6 });
+
+      mockVod.load(mockMasterManifest, mockMediaManifest)
+        .then(() => {
+          const bandwidths = mockVod.getBandwidths();
+          const manifest = mockVod.getMediaManifest(bandwidths[0]);
+          const lines = manifest.split("\n");
+          // The EXT-X-MAP is carried on the segment it precedes, so slicing the
+          // start of the playlist must not take the init segment with it.
+          expect(manifest).toContain('#EXT-X-MAP:URI="test-video=2500000.m4s"');
+          expect(lines.indexOf('#EXT-X-MAP:URI="test-video=2500000.m4s"'))
+            .toBeLessThan(lines.findIndex(line => line.startsWith('#EXTINF')));
+          expect(calcDuration(manifest)).toEqual(6);
+          done();
+        })
+    });
     it("cuts to the closest segment when requesting unaligned duration with equal time between them", done => {
       const mockVod1 = new HLSTruncateVod('http://mock.com/mock.m3u8', 7.5, {});
 
@@ -354,8 +384,8 @@ describe("HLSTruncateVod", () => {
           const durationAudio = calcDuration(audioManifest);
           expect(durationVideo).toEqual(6);
           expect(durationAudio).toEqual(7.68);
-          expect(linesVideo[9]).toEqual("test-video=2500000-2.m4s");
-          expect(linesAudio[9]).toEqual("test-audio=256000-2.m4s");
+          expect(linesVideo[10]).toEqual("test-video=2500000-2.m4s");
+          expect(linesAudio[10]).toEqual("test-audio=256000-2.m4s");
           done();
         })
     });
@@ -667,8 +697,8 @@ describe("HLSTruncateVod", () => {
           
           // Check that we're starting from the correct segments (after offset)
           // For a 9-second offset with 3-second segments, we should start at segment 4
-          expect(linesVideo[9]).toEqual("test-video=2500000-4.m4s");
-          expect(linesAudio[9]).toEqual("test-audio=256000-4.m4s");
+          expect(linesVideo[10]).toEqual("test-video=2500000-4.m4s");
+          expect(linesAudio[10]).toEqual("test-audio=256000-4.m4s");
           expect(linesSubtitle[9]).toEqual("test-subs-4.vtt");
           
           done();

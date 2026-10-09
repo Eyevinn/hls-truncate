@@ -1,6 +1,24 @@
 const m3u8 = require('@eyevinn/m3u8');
 const fetch = require('node-fetch');
 
+// The EXT-X-MAP tag is attached to the segment that follows it, so slicing away
+// the beginning of a playlist takes the init segment with it and leaves a CMAF
+// playlist that no player can start. Carry the map that applies at startPos onto
+// the new first segment. Walking backwards matters because a playlist may switch
+// init segment at a discontinuity, and the one in effect is the closest above.
+const carryInitSegment = (items, startPos) => {
+  if (startPos === 0 || !items[startPos] || items[startPos].get('map-uri')) {
+    return;
+  }
+  for (let i = startPos - 1; i >= 0; i--) {
+    const mapUri = items[i].get('map-uri');
+    if (mapUri) {
+      items[startPos].set('map-uri', mapUri);
+      return;
+    }
+  }
+};
+
 class HLSTruncateVod {
   constructor(vodManifestUri, duration, options) {
     this.masterManifestUri = vodManifestUri;
@@ -341,6 +359,7 @@ class HLSTruncateVod {
         });
         this.removedDurationFromStartVideo = totalDuration;
 
+        carryInitSegment(m3u.items.PlaylistItem, startPos);
         this.playlistsVideo[bandwidth].items.PlaylistItem = m3u.items.PlaylistItem.slice(startPos, startPos + pos);
         resolve();
       });
@@ -426,6 +445,7 @@ class HLSTruncateVod {
           }
         }
 
+        carryInitSegment(m3u.items.PlaylistItem, startPos);
         this.playlistsAudio[variantKey].items.PlaylistItem = m3u.items.PlaylistItem.slice(startPos, startPos + pos);
         resolve();
       });
@@ -503,6 +523,7 @@ class HLSTruncateVod {
           }
         }
 
+        carryInitSegment(m3u.items.PlaylistItem, startPos);
         this.playlistsSubtitles[variantKey].items.PlaylistItem = m3u.items.PlaylistItem.slice(startPos, startPos + pos);
         resolve();
       });
